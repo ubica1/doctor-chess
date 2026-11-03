@@ -1,46 +1,373 @@
 /* Legal move notation and portable game records, shared by replay and export. */
-const ChessNotation=(()=>{
- const E=typeof module!=='undefined'?require('./engine.js'):{initial,color,name,legal,apply,check,allMoves};
- function infer(before,after){const from=[],to=[];for(let i=0;i<64;i++){if(before.b[i]===after.b[i])continue;if(E.color(before.b[i])===before.turn)from.push(i);if(E.color(after.b[i])===before.turn)to.push(i)}
-  const king=from.find(i=>before.b[i].toLowerCase()==='k'),sources=king===undefined?from:[king];
-  for(const i of sources)for(const j of to){const promotion=before.b[i].toLowerCase()==='p'&&(j<8||j>=56)?after.b[j].toLowerCase():'q';if(!E.legal(before,i).includes(j))continue;const next=E.apply(before,i,j,promotion);if(next.b.every((p,k)=>p===after.b[k]))return {from:i,to:j,promotion,piece:before.b[i]}}throw Error('Не удалось восстановить ход');
- }
- function san(state,m){const p=state.b[m.from];if(!p||!E.legal(state,m.from).includes(m.to))throw Error('Недопустимый ход в записи партии');let text='',type=p.toLowerCase(),capture=!!state.b[m.to]||type==='p'&&m.to===state.ep;
-  if(type==='k'&&Math.abs(m.to-m.from)===2)text=m.to>m.from?'O-O':'O-O-O';else{if(type!=='p'){text=type.toUpperCase();const others=state.b.map((q,i)=>q===p&&i!==m.from&&E.legal(state,i).includes(m.to)?i:-1).filter(i=>i>=0);if(others.length){const file=m.from%8,rank=Math.floor(m.from/8);text+=!others.some(i=>i%8===file)?E.name(m.from)[0]:!others.some(i=>Math.floor(i/8)===rank)?E.name(m.from)[1]:E.name(m.from)}}else if(capture)text=E.name(m.from)[0];text+=(capture?'x':'')+E.name(m.to);if(type==='p'&&(m.to<8||m.to>=56))text+='='+(m.promotion||'q').toUpperCase()}
-  const next=E.apply(state,m.from,m.to,m.promotion||'q');if(E.check(next,next.turn))text+=E.allMoves(next)?'+':'#';return text;
- }
- function replay(start,records){const positions=[start],sans=[];for(const m of records){sans.push(san(positions.at(-1),m));positions.push(E.apply(positions.at(-1),m.from,m.to,m.promotion||'q'))}return {positions,sans,records}}
- function describe(previous,current){const positions=[...previous,current],records=[],sans=[];for(let n=0;n<positions.length-1;n++){const m=infer(positions[n],positions[n+1]);records.push(m);sans.push(san(positions[n],m))}return {positions,sans,records}}
- function fen(s){let ranks=[];for(let r=0;r<8;r++){let rank='',empty=0;for(let c=0;c<8;c++){let p=s.b[r*8+c];if(!p){empty++;continue}if(empty){rank+=empty;empty=0}rank+=p}if(empty)rank+=empty;ranks.push(rank)}return ranks.join('/')+' '+s.turn+' '+(s.rights||'-')+' '+(s.ep<0?'-':E.name(s.ep))+' '+(s.half||0)+' '+(s.fullmove||1)}
-
- function fromFEN(text){
-  const f=String(text).trim().split(/\s+/);if(f.length!==6)throw Error('В FEN должно быть шесть полей.');const rows=f[0].split('/');if(rows.length!==8)throw Error('В FEN должно быть восемь горизонталей.');const b=[];
-  for(const row of rows){let n=0;for(const c of row){if(/[1-8]/.test(c)){const count=Number(c);n+=count;for(let k=0;k<count;k++)b.push(null)}else if(/[prnbqkPRNBQK]/.test(c)){b.push(c);n++}else throw Error('Неизвестный символ фигуры в FEN.')}if(n!==8)throw Error('В каждой горизонтали FEN должно быть восемь клеток.')}
-  if(!['w','b'].includes(f[1]))throw Error('Очередь хода в FEN: w или b.');if(b.filter(p=>p==='K').length!==1||b.filter(p=>p==='k').length!==1)throw Error('На доске должен быть один король каждого цвета.');
-  if(b.slice(0,8).concat(b.slice(56)).some(p=>p&&p.toLowerCase()==='p'))throw Error('Пешка не может стоять на первой или восьмой горизонтали.');for(const side of ['w','b']){if(b.filter(p=>E.color(p)===side).length>16||b.filter(p=>p===(side==='w'?'P':'p')).length>8)throw Error('В позиции слишком много фигур или пешек одного цвета.')}
-  if(f[2]!=='-'&&(!/^[KQkq]+$/.test(f[2])||new Set(f[2]).size!==f[2].length))throw Error('Некорректные права рокировки.');const rights='KQkq'.split('').filter(c=>f[2].includes(c)).join('');
-  for(const [key,k,r,p]of [['K',60,63,'R'],['Q',60,56,'R'],['k',4,7,'r'],['q',4,0,'r']])if(rights.includes(key)&&(b[k]!== (p==='R'?'K':'k')||b[r]!==p))throw Error('Право рокировки не соответствует положению короля и ладьи.');
-  let ep=-1;if(f[3]!=='-'){if(!/^[a-h][36]$/.test(f[3]))throw Error('Некорректное поле взятия на проходе.');ep=(8-Number(f[3][1]))*8+'abcdefgh'.indexOf(f[3][0]);const white=f[1]==='w';if(Number(f[3][1])!==(white?6:3)||b[ep]||b[ep+(white?8:-8)]!==(white?'p':'P')||b[ep+(white?-8:8)])throw Error('Поле взятия на проходе не соответствует позиции.')}
-  if(!/^\d+$/.test(f[4])||!/^\d+$/.test(f[5])||Number(f[4])>10000||Number(f[5])<1||Number(f[5])>10000)throw Error('Некорректные счётчики ходов FEN.');
-  const state={b,turn:f[1],rights,ep,half:Number(f[4]),fullmove:Number(f[5])};if(E.check(state,state.turn==='w'?'b':'w'))throw Error('Король стороны, которая уже сходила, не может оставаться под шахом.');return state;
- }
- function stripNotes(text){let out='',variation=0,comment=false,lineComment=false;for(let i=0;i<text.length;i++){const c=text[i];if(lineComment){if(c==='\n'){lineComment=false;out+=' '}continue}if(comment){if(c==='}')comment=false;continue}if(c==='{'){comment=true;out+=' ';continue}if(c===';'){lineComment=true;out+=' ';continue}if(c==='('){variation++;out+=' ';continue}if(c===')'){if(!variation)throw Error('Лишняя скобка варианта в PGN.');variation--;out+=' ';continue}if(!variation)out+=c}if(comment||variation)throw Error('Незакрытый комментарий или вариант в PGN.');return out}
- function fromPGN(text){
-  if(typeof text==='string'&&!text.trim())throw Error('Вставьте запись партии PGN.');if(typeof text!=='string'||text.length>131072)throw Error('Загрузите одну партию PGN размером до 128 КБ.');let rest=text.replace(/^\uFEFF/,'').trim(),tags=Object.create(null);
-  while(rest.startsWith('[')){const m=rest.match(/^\[([A-Za-z][A-Za-z0-9_]*)\s+"((?:[^"\\]|\\.)*)"\s*\]/);if(!m)throw Error('Некорректный заголовок PGN.');tags[m[1]]=m[2].replace(/\\(.)/g,'$1');rest=rest.slice(m[0].length).trimStart()}
-  const start=tags.FEN?fromFEN(tags.FEN):E.initial(),positions=[start],sans=[],records=[];let result=null;const tokens=stripNotes(rest).replace(/\$\d+/g,' ').replace(/\d+\.(?:\.\.)?/g,' ').replace(/\.\.\./g,' ').trim().split(/\s+/).filter(Boolean);
-  for(let token of tokens){if(/^(1-0|0-1|1\/2-1\/2|\*)$/.test(token)){if(result)throw Error('Вставьте одну партию, без нескольких результатов.');result=token;continue}if(result)throw Error('После результата найдены новые ходы. Импортируйте одну партию.');if(/^(e\.p\.|ep|[!?]+)$/.test(token))continue;if(records.length>=400)throw Error('Поддерживается до 400 полуходов в одной партии.');const state=positions.at(-1);let normalized=token.replace(/[!?]+/g,'').replace(/[+#]+$/,'').replace(/0/g,'O').replace(/×/g,'x'),candidates=[];
-   if(/^O-O(?:-O)?$/.test(normalized)){const from=state.turn==='w'?60:4;candidates=[{from,to:from+(normalized==='O-O'?2:-2),promotion:'q'}]}
-   else if(/^[a-h][1-8][a-h][1-8][qrbnQRBN]?$/.test(normalized)){const index=t=>(8-Number(t[1]))*8+'abcdefgh'.indexOf(t[0]);candidates=[{from:index(normalized.slice(0,2)),to:index(normalized.slice(2,4)),promotion:(normalized[4]||'q').toLowerCase()}]}
-   else{const match=normalized.match(/^([KQRBN])?([a-h])?([1-8])?(x)?([a-h][1-8])(?:=?([QRBN]))?$/);if(!match)throw Error('Неизвестная запись хода: '+token);const [,pieceType,file,rank,capture,target,promotion]=match,to=(8-Number(target[1]))*8+'abcdefgh'.indexOf(target[0]),wanted=state.turn==='w'?(pieceType||'P'):(pieceType||'P').toLowerCase();for(let from=0;from<64;from++)if(state.b[from]===wanted&&(!file||E.name(from)[0]===file)&&(!rank||E.name(from)[1]===rank))candidates.push({from,to,promotion:(promotion||'q').toLowerCase()})}
-   const possible=candidates.filter(m=>E.color(state.b[m.from])===state.turn&&E.legal(state,m.from).includes(m.to)&&san(state,m).replace(/[+#]+$/,'')===normalized);
-   // Coordinate notation is accepted in addition to SAN.
-   let m=possible[0];if(/^[a-h][1-8][a-h][1-8][qrbnQRBN]?$/.test(normalized))m=candidates.find(m=>E.color(state.b[m.from])===state.turn&&E.legal(state,m.from).includes(m.to));
-   if(!m||possible.length>1)throw Error('Ход '+token+' не подходит к позиции (полуход '+(records.length+1)+').');sans.push(san(state,m));records.push(m);positions.push(E.apply(state,m.from,m.to,m.promotion));
+const ChessNotation = (() => {
+  const E =
+    typeof module !== 'undefined'
+      ? require('./engine.js')
+      : { initial, color, name, legal, apply, check, allMoves };
+  function infer(before, after) {
+    const from = [],
+      to = [];
+    for (let i = 0; i < 64; i++) {
+      if (before.b[i] === after.b[i]) continue;
+      if (E.color(before.b[i]) === before.turn) from.push(i);
+      if (E.color(after.b[i]) === before.turn) to.push(i);
+    }
+    const king = from.find((i) => before.b[i].toLowerCase() === 'k'),
+      sources = king === undefined ? from : [king];
+    for (const i of sources)
+      for (const j of to) {
+        const promotion =
+          before.b[i].toLowerCase() === 'p' && (j < 8 || j >= 56) ? after.b[j].toLowerCase() : 'q';
+        if (!E.legal(before, i).includes(j)) continue;
+        const next = E.apply(before, i, j, promotion);
+        if (next.b.every((p, k) => p === after.b[k]))
+          return { from: i, to: j, promotion, piece: before.b[i] };
+      }
+    throw Error('Не удалось восстановить ход');
   }
-  const valid=['1-0','0-1','1/2-1/2','*'];if(tags.Result&&!valid.includes(tags.Result))throw Error('Некорректный результат в PGN.');if(result&&tags.Result&&result!==tags.Result&&result!=='*'&&tags.Result!=='*')throw Error('Результат в заголовке не совпадает с записью.');tags.Result=result||tags.Result||'*';return {positions,sans,records,tags};
- }
- function pgn(line,tags={}){const result=tags.Result||'*',escape=s=>String(s).replace(/[\r\n]/g,' ').replace(/\\/g,'\\\\').replace(/"/g,'\\"');let headers={Event:'Doctor Chess',Site:'Local club',Date:new Date().toLocaleDateString('sv-SE').replace(/-/g,'.'),White:'White',Black:'Black',Result:result,...tags};if(fen(line.positions[0])!==fen(E.initial())){headers.SetUp='1';headers.FEN=fen(line.positions[0])}let text='',number=line.positions[0].fullmove||1,turn=line.positions[0].turn;for(const san of line.sans){if(turn==='w')text+=number+'. ';else if(!text)text+=number+'... ';text+=san+' ';if(turn==='b')number++;turn=turn==='w'?'b':'w'}return Object.entries(headers).map(([k,v])=>'['+k+' "'+escape(v)+'"]').join('\n')+'\n\n'+text+result+'\n'}
- return {infer,san,replay,describe,fen,pgn,fromFEN,fromPGN};
+  function san(state, m) {
+    const p = state.b[m.from];
+    if (!p || !E.legal(state, m.from).includes(m.to))
+      throw Error('Недопустимый ход в записи партии');
+    let text = '',
+      type = p.toLowerCase(),
+      capture = !!state.b[m.to] || (type === 'p' && m.to === state.ep);
+    if (type === 'k' && Math.abs(m.to - m.from) === 2) text = m.to > m.from ? 'O-O' : 'O-O-O';
+    else {
+      if (type !== 'p') {
+        text = type.toUpperCase();
+        const others = state.b
+          .map((q, i) => (q === p && i !== m.from && E.legal(state, i).includes(m.to) ? i : -1))
+          .filter((i) => i >= 0);
+        if (others.length) {
+          const file = m.from % 8,
+            rank = Math.floor(m.from / 8);
+          text += !others.some((i) => i % 8 === file)
+            ? E.name(m.from)[0]
+            : !others.some((i) => Math.floor(i / 8) === rank)
+              ? E.name(m.from)[1]
+              : E.name(m.from);
+        }
+      } else if (capture) text = E.name(m.from)[0];
+      text += (capture ? 'x' : '') + E.name(m.to);
+      if (type === 'p' && (m.to < 8 || m.to >= 56))
+        text += '=' + (m.promotion || 'q').toUpperCase();
+    }
+    const next = E.apply(state, m.from, m.to, m.promotion || 'q');
+    if (E.check(next, next.turn)) text += E.allMoves(next) ? '+' : '#';
+    return text;
+  }
+  function replay(start, records) {
+    const positions = [start],
+      sans = [];
+    for (const m of records) {
+      sans.push(san(positions.at(-1), m));
+      positions.push(E.apply(positions.at(-1), m.from, m.to, m.promotion || 'q'));
+    }
+    return { positions, sans, records };
+  }
+  function describe(previous, current) {
+    const positions = [...previous, current],
+      records = [],
+      sans = [];
+    for (let n = 0; n < positions.length - 1; n++) {
+      const m = infer(positions[n], positions[n + 1]);
+      records.push(m);
+      sans.push(san(positions[n], m));
+    }
+    return { positions, sans, records };
+  }
+  function fen(s) {
+    let ranks = [];
+    for (let r = 0; r < 8; r++) {
+      let rank = '',
+        empty = 0;
+      for (let c = 0; c < 8; c++) {
+        let p = s.b[r * 8 + c];
+        if (!p) {
+          empty++;
+          continue;
+        }
+        if (empty) {
+          rank += empty;
+          empty = 0;
+        }
+        rank += p;
+      }
+      if (empty) rank += empty;
+      ranks.push(rank);
+    }
+    return (
+      ranks.join('/') +
+      ' ' +
+      s.turn +
+      ' ' +
+      (s.rights || '-') +
+      ' ' +
+      (s.ep < 0 ? '-' : E.name(s.ep)) +
+      ' ' +
+      (s.half || 0) +
+      ' ' +
+      (s.fullmove || 1)
+    );
+  }
+
+  function fromFEN(text) {
+    const f = String(text).trim().split(/\s+/);
+    if (f.length !== 6) throw Error('В FEN должно быть шесть полей.');
+    const rows = f[0].split('/');
+    if (rows.length !== 8) throw Error('В FEN должно быть восемь горизонталей.');
+    const b = [];
+    for (const row of rows) {
+      let n = 0;
+      for (const c of row) {
+        if (/[1-8]/.test(c)) {
+          const count = Number(c);
+          n += count;
+          for (let k = 0; k < count; k++) b.push(null);
+        } else if (/[prnbqkPRNBQK]/.test(c)) {
+          b.push(c);
+          n++;
+        } else throw Error('Неизвестный символ фигуры в FEN.');
+      }
+      if (n !== 8) throw Error('В каждой горизонтали FEN должно быть восемь клеток.');
+    }
+    if (!['w', 'b'].includes(f[1])) throw Error('Очередь хода в FEN: w или b.');
+    if (b.filter((p) => p === 'K').length !== 1 || b.filter((p) => p === 'k').length !== 1)
+      throw Error('На доске должен быть один король каждого цвета.');
+    if (
+      b
+        .slice(0, 8)
+        .concat(b.slice(56))
+        .some((p) => p && p.toLowerCase() === 'p')
+    )
+      throw Error('Пешка не может стоять на первой или восьмой горизонтали.');
+    for (const side of ['w', 'b']) {
+      if (
+        b.filter((p) => E.color(p) === side).length > 16 ||
+        b.filter((p) => p === (side === 'w' ? 'P' : 'p')).length > 8
+      )
+        throw Error('В позиции слишком много фигур или пешек одного цвета.');
+    }
+    if (f[2] !== '-' && (!/^[KQkq]+$/.test(f[2]) || new Set(f[2]).size !== f[2].length))
+      throw Error('Некорректные права рокировки.');
+    const rights = 'KQkq'
+      .split('')
+      .filter((c) => f[2].includes(c))
+      .join('');
+    for (const [key, k, r, p] of [
+      ['K', 60, 63, 'R'],
+      ['Q', 60, 56, 'R'],
+      ['k', 4, 7, 'r'],
+      ['q', 4, 0, 'r'],
+    ])
+      if (rights.includes(key) && (b[k] !== (p === 'R' ? 'K' : 'k') || b[r] !== p))
+        throw Error('Право рокировки не соответствует положению короля и ладьи.');
+    let ep = -1;
+    if (f[3] !== '-') {
+      if (!/^[a-h][36]$/.test(f[3])) throw Error('Некорректное поле взятия на проходе.');
+      ep = (8 - Number(f[3][1])) * 8 + 'abcdefgh'.indexOf(f[3][0]);
+      const white = f[1] === 'w';
+      if (
+        Number(f[3][1]) !== (white ? 6 : 3) ||
+        b[ep] ||
+        b[ep + (white ? 8 : -8)] !== (white ? 'p' : 'P') ||
+        b[ep + (white ? -8 : 8)]
+      )
+        throw Error('Поле взятия на проходе не соответствует позиции.');
+    }
+    if (
+      !/^\d+$/.test(f[4]) ||
+      !/^\d+$/.test(f[5]) ||
+      Number(f[4]) > 10000 ||
+      Number(f[5]) < 1 ||
+      Number(f[5]) > 10000
+    )
+      throw Error('Некорректные счётчики ходов FEN.');
+    const state = { b, turn: f[1], rights, ep, half: Number(f[4]), fullmove: Number(f[5]) };
+    if (E.check(state, state.turn === 'w' ? 'b' : 'w'))
+      throw Error('Король стороны, которая уже сходила, не может оставаться под шахом.');
+    return state;
+  }
+  function stripNotes(text) {
+    let out = '',
+      variation = 0,
+      comment = false,
+      lineComment = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (lineComment) {
+        if (c === '\n') {
+          lineComment = false;
+          out += ' ';
+        }
+        continue;
+      }
+      if (comment) {
+        if (c === '}') comment = false;
+        continue;
+      }
+      if (c === '{') {
+        comment = true;
+        out += ' ';
+        continue;
+      }
+      if (c === ';') {
+        lineComment = true;
+        out += ' ';
+        continue;
+      }
+      if (c === '(') {
+        variation++;
+        out += ' ';
+        continue;
+      }
+      if (c === ')') {
+        if (!variation) throw Error('Лишняя скобка варианта в PGN.');
+        variation--;
+        out += ' ';
+        continue;
+      }
+      if (!variation) out += c;
+    }
+    if (comment || variation) throw Error('Незакрытый комментарий или вариант в PGN.');
+    return out;
+  }
+  function fromPGN(text) {
+    if (typeof text === 'string' && !text.trim()) throw Error('Вставьте запись партии PGN.');
+    if (typeof text !== 'string' || text.length > 131072)
+      throw Error('Загрузите одну партию PGN размером до 128 КБ.');
+    let rest = text.replace(/^\uFEFF/, '').trim(),
+      tags = Object.create(null);
+    while (rest.startsWith('[')) {
+      const m = rest.match(/^\[([A-Za-z][A-Za-z0-9_]*)\s+"((?:[^"\\]|\\.)*)"\s*\]/);
+      if (!m) throw Error('Некорректный заголовок PGN.');
+      tags[m[1]] = m[2].replace(/\\(.)/g, '$1');
+      rest = rest.slice(m[0].length).trimStart();
+    }
+    const start = tags.FEN ? fromFEN(tags.FEN) : E.initial(),
+      positions = [start],
+      sans = [],
+      records = [];
+    let result = null;
+    const tokens = stripNotes(rest)
+      .replace(/\$\d+/g, ' ')
+      .replace(/\d+\.(?:\.\.)?/g, ' ')
+      .replace(/\.\.\./g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    for (let token of tokens) {
+      if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(token)) {
+        if (result) throw Error('Вставьте одну партию, без нескольких результатов.');
+        result = token;
+        continue;
+      }
+      if (result) throw Error('После результата найдены новые ходы. Импортируйте одну партию.');
+      if (/^(e\.p\.|ep|[!?]+)$/.test(token)) continue;
+      if (records.length >= 400) throw Error('Поддерживается до 400 полуходов в одной партии.');
+      const state = positions.at(-1);
+      let normalized = token
+          .replace(/[!?]+/g, '')
+          .replace(/[+#]+$/, '')
+          .replace(/0/g, 'O')
+          .replace(/×/g, 'x'),
+        candidates = [];
+      if (/^O-O(?:-O)?$/.test(normalized)) {
+        const from = state.turn === 'w' ? 60 : 4;
+        candidates = [{ from, to: from + (normalized === 'O-O' ? 2 : -2), promotion: 'q' }];
+      } else if (/^[a-h][1-8][a-h][1-8][qrbnQRBN]?$/.test(normalized)) {
+        const index = (t) => (8 - Number(t[1])) * 8 + 'abcdefgh'.indexOf(t[0]);
+        candidates = [
+          {
+            from: index(normalized.slice(0, 2)),
+            to: index(normalized.slice(2, 4)),
+            promotion: (normalized[4] || 'q').toLowerCase(),
+          },
+        ];
+      } else {
+        const match = normalized.match(
+          /^([KQRBN])?([a-h])?([1-8])?(x)?([a-h][1-8])(?:=?([QRBN]))?$/
+        );
+        if (!match) throw Error('Неизвестная запись хода: ' + token);
+        const [, pieceType, file, rank, capture, target, promotion] = match,
+          to = (8 - Number(target[1])) * 8 + 'abcdefgh'.indexOf(target[0]),
+          wanted = state.turn === 'w' ? pieceType || 'P' : (pieceType || 'P').toLowerCase();
+        for (let from = 0; from < 64; from++)
+          if (
+            state.b[from] === wanted &&
+            (!file || E.name(from)[0] === file) &&
+            (!rank || E.name(from)[1] === rank)
+          )
+            candidates.push({ from, to, promotion: (promotion || 'q').toLowerCase() });
+      }
+      const possible = candidates.filter(
+        (m) =>
+          E.color(state.b[m.from]) === state.turn &&
+          E.legal(state, m.from).includes(m.to) &&
+          san(state, m).replace(/[+#]+$/, '') === normalized
+      );
+      // Coordinate notation is accepted in addition to SAN.
+      let m = possible[0];
+      if (/^[a-h][1-8][a-h][1-8][qrbnQRBN]?$/.test(normalized))
+        m = candidates.find(
+          (m) => E.color(state.b[m.from]) === state.turn && E.legal(state, m.from).includes(m.to)
+        );
+      if (!m || possible.length > 1)
+        throw Error(
+          'Ход ' + token + ' не подходит к позиции (полуход ' + (records.length + 1) + ').'
+        );
+      sans.push(san(state, m));
+      records.push(m);
+      positions.push(E.apply(state, m.from, m.to, m.promotion));
+    }
+    const valid = ['1-0', '0-1', '1/2-1/2', '*'];
+    if (tags.Result && !valid.includes(tags.Result)) throw Error('Некорректный результат в PGN.');
+    if (result && tags.Result && result !== tags.Result && result !== '*' && tags.Result !== '*')
+      throw Error('Результат в заголовке не совпадает с записью.');
+    tags.Result = result || tags.Result || '*';
+    return { positions, sans, records, tags };
+  }
+  function pgn(line, tags = {}) {
+    const result = tags.Result || '*',
+      escape = (s) =>
+        String(s)
+          .replace(/[\r\n]/g, ' ')
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"');
+    let headers = {
+      Event: 'Doctor Chess',
+      Site: 'Local club',
+      Date: new Date().toLocaleDateString('sv-SE').replace(/-/g, '.'),
+      White: 'White',
+      Black: 'Black',
+      Result: result,
+      ...tags,
+    };
+    if (fen(line.positions[0]) !== fen(E.initial())) {
+      headers.SetUp = '1';
+      headers.FEN = fen(line.positions[0]);
+    }
+    let text = '',
+      number = line.positions[0].fullmove || 1,
+      turn = line.positions[0].turn;
+    for (const san of line.sans) {
+      if (turn === 'w') text += number + '. ';
+      else if (!text) text += number + '... ';
+      text += san + ' ';
+      if (turn === 'b') number++;
+      turn = turn === 'w' ? 'b' : 'w';
+    }
+    return (
+      Object.entries(headers)
+        .map(([k, v]) => '[' + k + ' "' + escape(v) + '"]')
+        .join('\n') +
+      '\n\n' +
+      text +
+      result +
+      '\n'
+    );
+  }
+  return { infer, san, replay, describe, fen, pgn, fromFEN, fromPGN };
 })();
-if(typeof module!=='undefined')module.exports=ChessNotation;
+if (typeof module !== 'undefined') module.exports = ChessNotation;

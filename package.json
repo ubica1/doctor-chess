@@ -1,0 +1,18 @@
+{
+  "name": "doctor-chess",
+  "version": "0.4.0",
+  "private": true,
+  "description": "A warm Chinese-inspired chess club with DJ Doctor.",
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "start": "python doctor-chess-site/server.py",
+    "test": "node scripts/check.cjs",
+    "format": "prettier --write . && python -m black doctor-chess-site",
+    "format:check": "prettier --check . && python -m black --check doctor-chess-site"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
+}

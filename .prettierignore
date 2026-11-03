@@ -1,0 +1,8 @@
+.history
+.venv
+node_modules
+**/data
+**/outputs
+**/.openai
+**/__pycache__
+*.tar.gz

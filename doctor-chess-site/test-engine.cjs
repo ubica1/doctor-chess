@@ -1,1 +1,45 @@
-const assert=require('assert'),E=require('./dist/engine.js');function perft(s,d){if(!d)return 1;let n=0;for(let i=0;i<64;i++)if(E.color(s.b[i])===s.turn)for(const j of E.legal(s,i))n+=perft(E.apply(s,i,j),d-1);return n}for(const [d,n]of [[1,20],[2,400],[3,8902]])assert.equal(perft(E.initial(),d),n);let s=E.initial();for(const [i,j]of [[52,36],[8,16],[36,28],[11,27]]){assert(E.legal(s,i).includes(j));s=E.apply(s,i,j)}assert(E.legal(s,28).includes(19));s=E.apply(s,28,19);assert.equal(s.b[27],null);assert.equal(s.b[19],'P');s={b:Array(64).fill(null),rights:'KQ',turn:'w',ep:-1,half:0};s.b[60]='K';s.b[56]='R';s.b[63]='R';s.b[4]='k';assert(E.legal(s,60).includes(62));s=E.apply(s,60,62);assert.equal(s.b[61],'R');assert.equal(s.b[63],null);s={b:Array(64).fill(null),rights:'',turn:'w',ep:-1,half:0};s.b[7]='k';s.b[22]='K';s.b[13]='Q';assert(!E.allMoves(E.apply(s,13,14)));console.log('PASS: perft 20/400/8902, en passant, castling, puzzle mate');
+const assert = require('assert'),
+  E = require('./dist/engine.js');
+function perft(s, d) {
+  if (!d) return 1;
+  let n = 0;
+  for (let i = 0; i < 64; i++)
+    if (E.color(s.b[i]) === s.turn)
+      for (const j of E.legal(s, i)) n += perft(E.apply(s, i, j), d - 1);
+  return n;
+}
+for (const [d, n] of [
+  [1, 20],
+  [2, 400],
+  [3, 8902],
+])
+  assert.equal(perft(E.initial(), d), n);
+let s = E.initial();
+for (const [i, j] of [
+  [52, 36],
+  [8, 16],
+  [36, 28],
+  [11, 27],
+]) {
+  assert(E.legal(s, i).includes(j));
+  s = E.apply(s, i, j);
+}
+assert(E.legal(s, 28).includes(19));
+s = E.apply(s, 28, 19);
+assert.equal(s.b[27], null);
+assert.equal(s.b[19], 'P');
+s = { b: Array(64).fill(null), rights: 'KQ', turn: 'w', ep: -1, half: 0 };
+s.b[60] = 'K';
+s.b[56] = 'R';
+s.b[63] = 'R';
+s.b[4] = 'k';
+assert(E.legal(s, 60).includes(62));
+s = E.apply(s, 60, 62);
+assert.equal(s.b[61], 'R');
+assert.equal(s.b[63], null);
+s = { b: Array(64).fill(null), rights: '', turn: 'w', ep: -1, half: 0 };
+s.b[7] = 'k';
+s.b[22] = 'K';
+s.b[13] = 'Q';
+assert(!E.allMoves(E.apply(s, 13, 14)));
+console.log('PASS: perft 20/400/8902, en passant, castling, puzzle mate');
