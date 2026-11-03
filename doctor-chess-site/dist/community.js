@@ -34,6 +34,7 @@ function communityNav(which) {
     .forEach((b) => b.classList.toggle('nav-active', b.id === which));
 }
 async function routePage() {
+  stopInvitationWatch();
   const path = location.pathname;
   communityRequest++;
   if (path === '/' || path === '/index.html') {
@@ -43,6 +44,7 @@ async function routePage() {
     document.title = 'Doctor Chess · Шахматная комната';
     return;
   }
+  if (path.startsWith('/invite/')) return loadInvitation(path.slice(8));
   if (path === '/players') return showPlayers();
   if (path.startsWith('/review/')) return loadReviewGame(path.slice(8));
   if (path.startsWith('/player/')) {
@@ -96,7 +98,7 @@ async function loadPlayer(username, page = 1, category = 'all') {
    .join(
      ''
    )}</div><p class="rating-footnote">? — стартовый рейтинг, пока нет завершённых партий в этом контроле.</p></section>
- <section class="public-history"><div class="profile-section-title"><span>棋谱</span><h2>Последние партии</h2><small>${data.player.total_games}</small></div><div class="history-filters">${[['all', 'Все'], ...Object.entries(cats)].map(([c, t]) => `<button data-history-filter="${c}" class="${category === c ? 'selected' : ''}">${t}</button>`).join('')}</div>${p.games.length ? `<div class="game-log"><div class="game-log-head"><span>Соперник</span><span>Контроль</span><span>Результат</span><span>Дата</span></div>${p.games.map((g) => `<div class="game-log-row"><a class="opponent-link" href="${profilePath(g.opponent.username)}"><span class="opponent-emblem">${emblem(g.opponent.avatar)}</span><span>${escapeHtml(g.opponent.username)}<small>${g.side === 'w' ? 'Белыми' : 'Чёрными'}</small></span></a><span class="log-control">${g.control}<small>${cats[g.category]}</small></span><a href="/review/${g.id}" class="log-result ${g.result}" title="Разобрать партию: ${escapeHtml(g.reason)}">${{ win: 'Победа', draw: 'Ничья', loss: 'Поражение' }[g.result]} ↗</a><time>${dateLabel(g.created)}</time></div>`).join('')}</div>` : `<div class="history-empty"><div>${piece('N')}</div><h3>${category === 'all' ? 'Первая глава ещё не написана.' : 'В этом ритме пока без партий.'}</h3><p>Завершённые партии появятся здесь вместе с результатами.</p><a href="/">К игровой доске →</a></div>`}<div class="history-pagination"><button id="prev-games" ${page === 1 ? 'disabled' : ''}>← Назад</button><span>${page} / ${Math.max(1, Math.ceil(p.total_games / 12))}</span><button id="next-games" ${page * 12 >= p.total_games ? 'disabled' : ''}>Далее →</button></div></section></div></div><div class="community-footer"><span>以棋会友 · Встречаемся за шахматами</span><a href="/">Doctor Chess</a></div>`;
+ <section class="public-history"><div class="profile-section-title"><span>棋谱</span><h2>Последние партии</h2><small>${data.player.total_games}</small></div><div class="history-filters">${[['all', 'Все'], ...Object.entries(cats)].map(([c, t]) => `<button data-history-filter="${c}" class="${category === c ? 'selected' : ''}">${t}</button>`).join('')}</div>${p.games.length ? `<div class="game-log"><div class="game-log-head"><span>Соперник</span><span>Контроль</span><span>Результат</span><span>Дата</span></div>${p.games.map((g) => `<div class="game-log-row"><a class="opponent-link" href="${profilePath(g.opponent.username)}"><span class="opponent-emblem">${emblem(g.opponent.avatar)}</span><span>${escapeHtml(g.opponent.username)}<small>${g.side === 'w' ? 'Белыми' : 'Чёрными'}</small></span></a><span class="log-control">${g.control}<small>${g.kind === 'casual' ? 'Дружеская' : cats[g.category]}</small></span><a href="/review/${g.id}" class="log-result ${g.result}" title="Разобрать партию: ${escapeHtml(g.reason)}">${{ win: 'Победа', draw: 'Ничья', loss: 'Поражение' }[g.result]} ↗</a><time>${dateLabel(g.created)}</time></div>`).join('')}</div>` : `<div class="history-empty"><div>${piece('N')}</div><h3>${category === 'all' ? 'Первая глава ещё не написана.' : 'В этом ритме пока без партий.'}</h3><p>Завершённые партии появятся здесь вместе с результатами.</p><a href="/">К игровой доске →</a></div>`}<div class="history-pagination"><button id="prev-games" ${page === 1 ? 'disabled' : ''}>← Назад</button><span>${page} / ${Math.max(1, Math.ceil(p.total_games / 12))}</span><button id="next-games" ${page * 12 >= p.total_games ? 'disabled' : ''}>Далее →</button></div></section></div></div><div class="community-footer"><span>以棋会友 · Встречаемся за шахматами</span><a href="/">Doctor Chess</a></div>`;
     $('share-profile').onclick = async () => {
       const link = location.origin + profilePath(p.username);
       try {
@@ -212,7 +214,8 @@ document.addEventListener('click', (e) => {
     (url.pathname === '/' ||
       url.pathname === '/players' ||
       url.pathname.startsWith('/player/') ||
-      url.pathname.startsWith('/review/'))
+      url.pathname.startsWith('/review/') ||
+      url.pathname.startsWith('/invite/'))
   ) {
     e.preventDefault();
     navigate(url.pathname);

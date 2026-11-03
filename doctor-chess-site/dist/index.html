@@ -166,7 +166,8 @@
               <button id="online" class="selected">С соперником</button
               ><button id="computer">С доктором</button><button id="local">Вдвоём</button>
             </div>
-            <button class="resume-game" id="resume-game" hidden>
+            <button class="friend-game" id="friend-game">Играть с другом по ссылке ↗</button
+            ><button class="resume-game" id="resume-game" hidden>
               Вернуться в сетевую партию →
             </button>
             <div class="bot-settings" id="bot-settings" hidden>
@@ -208,7 +209,15 @@
             ><button class="primary" id="new">Найти соперника <span>↗</span></button>
             <p class="queue-note" id="queue-note">Рейтинговая партия · случайный соперник</p>
             <div class="game-actions" id="game-actions" hidden>
-              <button id="draw">Предложить ничью</button><button id="resign">Сдаться</button>
+              <button id="draw">Предложить ничью</button><button id="resign">Сдаться</button
+              ><button id="decline-draw" hidden>Отклонить ничью</button>
+            </div>
+            <div class="postgame" id="postgame" hidden>
+              <h3>Ещё одну?</h3>
+              <button class="primary" id="rematch">Предложить реванш</button
+              ><button class="form-switch" id="cancel-rematch" hidden>Отменить предложение</button>
+              <p id="rematch-note"></p>
+              <a class="postgame-review" id="postgame-review" href="/">Разобрать эту партию →</a>
             </div>
           </section>
           <section class="score-card">
@@ -257,6 +266,7 @@
     <script src="/board-view.js"></script>
     <script src="/studio.js"></script>
     <script src="/workbench.js"></script>
+    <script src="/club.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

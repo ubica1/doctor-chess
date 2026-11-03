@@ -164,6 +164,7 @@ function auth(register = false) {
       $('modal').close();
       updateUser();
       toast(register ? 'Добро пожаловать в клуб!' : 'Рады видеть вас снова');
+      await routePage();
       await poll();
     } catch (e) {
       $('auth-error').textContent = e.message;
@@ -389,11 +390,13 @@ function updatePlayers() {
       $(pos).classList.add('player-link');
       $(pos).onclick = () => openPlayer(u.username);
       $(pos + '-meta').textContent =
-        cats[game.category] +
-        ' · ' +
-        u.ratings[game.category].rating +
-        ' · ' +
-        (side === 'w' ? 'белые' : 'чёрные');
+        game.kind === 'casual'
+          ? 'Дружеская · ' + game.control + ' · ' + (side === 'w' ? 'белые' : 'чёрные')
+          : cats[game.category] +
+            ' · ' +
+            u.ratings[game.category].rating +
+            ' · ' +
+            (side === 'w' ? 'белые' : 'чёрные');
     }
   } else {
     for (const pos of ['top', 'bottom']) {

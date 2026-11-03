@@ -126,6 +126,7 @@ vm.runInContext(fs.readFileSync('dist/engine.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/notation.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/studio.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/workbench.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync('dist/club.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/app.js', 'utf8'), context);
 const run = (src) => vm.runInContext(src, context);
 async function appTests() {

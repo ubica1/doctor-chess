@@ -177,6 +177,7 @@ function updateStudioPanel() {
   }
   updateTimeline();
   updateWorkbench();
+  updateSocialPanel();
 }
 function updateBotPlayers() {
   if (mode !== 'computer' && mode !== 'analysis') return;
@@ -440,6 +441,7 @@ function requestBotColor(side) {
 }
 function initializeStudio() {
   initializeWorkbench();
+  initializeSocial();
   $('computer').onclick = () => changeMode('computer');
   $('nav-library').onclick = openLibrary;
   $('hint').onclick = askHint;

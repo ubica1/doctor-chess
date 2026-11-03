@@ -3,6 +3,7 @@ from pathlib import Path
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse, parse_qs, unquote
+from social import ClubGames, ClubError
 
 BASE = Path(__file__).resolve().parent
 DB = Path(os.environ.get("DOCTOR_CHESS_DB", str(BASE / "data" / "chess.sqlite3")))
@@ -96,7 +97,7 @@ def public_profile(username, page=1, category="all"):
         args,
     ).fetchone()[0]
     rows = db.execute(
-        "SELECT id,white,black,control,category,result,reason,created FROM games WHERE (white=? OR black=?) AND result IS NOT NULL"
+        "SELECT id,white,black,control,category,result,reason,created,kind FROM games WHERE (white=? OR black=?) AND result IS NOT NULL"
         + clause
         + " ORDER BY created DESC,id LIMIT 12 OFFSET ?",
         args + [(page - 1) * 12],
@@ -123,6 +124,7 @@ def public_profile(username, page=1, category="all"):
                 "reason": readable_reason(g["reason"]),
                 "created": g["created"],
                 "side": side,
+                "kind": g.get("kind", "rated"),
             }
         )
     out["games"] = games
@@ -140,24 +142,25 @@ def finish(g, result, reason):
             "UPDATE games SET result=?,reason=? WHERE id=? AND result IS NULL",
             (result, reason, g["id"]),
         )
-        a = db.execute(
-            "SELECT rating FROM ratings WHERE user_id=? AND category=?",
-            (g["white"], g["category"]),
-        ).fetchone()[0]
-        b = db.execute(
-            "SELECT rating FROM ratings WHERE user_id=? AND category=?",
-            (g["black"], g["category"]),
-        ).fetchone()[0]
-        score = 1 if result == "w" else 0 if result == "b" else 0.5
-        delta = round(24 * (score - 1 / (1 + 10 ** ((b - a) / 400))))
-        for uid, d, win in [
-            (g["white"], delta, result == "w"),
-            (g["black"], -delta, result == "b"),
-        ]:
-            db.execute(
-                "UPDATE ratings SET rating=rating+?,played=played+1,wins=wins+? WHERE user_id=? AND category=?",
-                (d, int(win), uid, g["category"]),
-            )
+        if g.get("kind", "rated") == "rated":
+            a = db.execute(
+                "SELECT rating FROM ratings WHERE user_id=? AND category=?",
+                (g["white"], g["category"]),
+            ).fetchone()[0]
+            b = db.execute(
+                "SELECT rating FROM ratings WHERE user_id=? AND category=?",
+                (g["black"], g["category"]),
+            ).fetchone()[0]
+            score = 1 if result == "w" else 0 if result == "b" else 0.5
+            delta = round(24 * (score - 1 / (1 + 10 ** ((b - a) / 400))))
+            for uid, d, win in [
+                (g["white"], delta, result == "w"),
+                (g["black"], -delta, result == "b"),
+            ]:
+                db.execute(
+                    "UPDATE ratings SET rating=rating+?,played=played+1,wins=wins+? WHERE user_id=? AND category=?",
+                    (d, int(win), uid, g["category"]),
+                )
         db.execute("COMMIT")
     except:
         db.execute("ROLLBACK")
@@ -186,6 +189,8 @@ def game_row(gid):
             for x in p["state"]["b"]
             if x and (x.isupper() if winner == "w" else x.islower())
         ]
+        p["clocks"][loser] = 0
+        db.execute("UPDATE games SET payload=? WHERE id=?", (json.dumps(p), g["id"]))
         finish(g, "draw" if len(pieces) == 1 else winner, "Время вышло")
     return g
 
@@ -211,7 +216,13 @@ def public_game(g, uid):
         "result": g["result"],
         "reason": g["reason"],
         "offer": p.get("offer"),
+        "kind": g.get("kind", "rated"),
+        "created": g["created"],
+        "rematch": club.pending_rematch(g, uid),
     }
+
+
+club = ClubGames(db, CONTROLS, INITIAL, profile, game_row, public_game)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -258,6 +269,7 @@ class Handler(SimpleHTTPRequestHandler):
         if (
             self.path.startswith("/player/")
             or self.path.startswith("/review/")
+            or self.path.startswith("/invite/")
             or urlparse(self.path).path == "/players"
         ):
             self.path = "/index.html"
@@ -269,6 +281,9 @@ class Handler(SimpleHTTPRequestHandler):
                 uid = self.user()
                 parsed = urlparse(self.path)
                 query = parse_qs(parsed.query)
+                if parsed.path.startswith("/api/challenges/"):
+                    token = parsed.path[len("/api/challenges/") :]
+                    return self.reply({"challenge": club.public(club.row(token), uid)})
                 if parsed.path.startswith("/api/games/"):
                     gid = parsed.path[len("/api/games/") :]
                     row = db.execute(
@@ -288,6 +303,7 @@ class Handler(SimpleHTTPRequestHandler):
                                 "white": white["username"],
                                 "black": black["username"],
                                 "control": row["control"],
+                                "kind": row["kind"],
                                 "created": row["created"],
                                 "result": row["result"],
                                 "reason": readable_reason(row["reason"]),
@@ -365,6 +381,8 @@ class Handler(SimpleHTTPRequestHandler):
                         ]
                     return self.reply(out)
                 return self.reply({"error": "Не найдено"}, 404)
+            except ClubError as error:
+                return self.reply({"error": str(error)}, error.status)
             except Exception:
                 return self.reply({"error": "Ошибка сервера"}, 500)
 
@@ -376,6 +394,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply({"error": "Недопустимый источник запроса"}, 403)
         try:
             size = int(self.headers.get("Content-Length", "0"))
+            if size < 0:
+                return self.reply({"error": "Некорректный размер запроса"}, 400)
             if size > 10000:
                 return self.reply({"error": "Слишком большой запрос"}, 413)
             x = json.loads(self.rfile.read(size) or b"{}")
@@ -386,6 +406,8 @@ class Handler(SimpleHTTPRequestHandler):
         with lock:
             try:
                 self.post(x)
+            except ClubError as error:
+                self.reply({"error": str(error)}, error.status)
             except (ValueError, KeyError, TypeError):
                 self.reply({"error": "Некорректные данные"}, 400)
             except Exception as e:
@@ -447,6 +469,20 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply({"user": profile(uid)}, cookie=self.session(uid))
         if not uid:
             return self.reply({"error": "Сначала войдите в профиль"}, 401)
+        if route == "/api/challenges":
+            return self.reply(
+                club.create(uid, x.get("control"), x.get("color", "random"))
+            )
+        match = re.fullmatch(r"/api/challenges/([A-Za-z0-9_-]+)/(join|cancel)", route)
+        if match:
+            return self.reply(
+                club.accept(match[1], uid)
+                if match[2] == "join"
+                else club.cancel(match[1], uid)
+            )
+        match = re.fullmatch(r"/api/games/([a-f0-9]+)/rematch", route)
+        if match:
+            return self.reply(club.rematch(match[1], uid))
         if route == "/api/logout":
             c = SimpleCookie(self.headers.get("Cookie", ""))
             token = c["dc_session"].value if "dc_session" in c else ""
@@ -481,6 +517,7 @@ class Handler(SimpleHTTPRequestHandler):
                 g = game_row(active[0])
                 if not g["result"]:
                     return self.reply({"game": public_game(g, uid)})
+            club.cancel_waiting(uid)
             db.execute("DELETE FROM queue WHERE touched<?", (time.time() - 15,))
             waiting = db.execute(
                 "SELECT user_id FROM queue WHERE control=? AND user_id!=? ORDER BY RANDOM() LIMIT 1",
@@ -493,24 +530,9 @@ class Handler(SimpleHTTPRequestHandler):
                 )
                 return self.reply({"queued": True})
             white, black = random.sample([uid, waiting[0]], 2)
-            cat, secs, inc = CONTROLS[control]
-            gid = secrets.token_hex(12)
-            payload = {
-                "state": INITIAL,
-                "clocks": {"w": secs, "b": secs},
-                "tick": time.time(),
-                "moves": [],
-                "last": [],
-                "history": [],
-                "offer": None,
-            }
-            db.execute(
-                "INSERT INTO games VALUES(?,?,?,?,?,?,NULL,NULL,?)",
-                (gid, white, black, control, cat, json.dumps(payload), time.time()),
-            )
-            db.execute("DELETE FROM queue WHERE user_id IN (?,?)", (uid, waiting[0]))
-            return self.reply({"game": public_game(game_row(gid), uid)})
-        if route in ["/api/move", "/api/resign", "/api/draw"]:
+            game = club.new_game(white, black, control)
+            return self.reply({"game": public_game(game, uid)})
+        if route in ["/api/move", "/api/resign", "/api/draw", "/api/draw-decline"]:
             g = game_row(str(x.get("game", "")))
             if not g or uid not in [g["white"], g["black"]]:
                 return self.reply({"error": "Партия не найдена"}, 404)
@@ -520,6 +542,11 @@ class Handler(SimpleHTTPRequestHandler):
             p = g["payload"]
             if route == "/api/resign":
                 finish(g, "b" if side == "w" else "w", "Соперник сдался")
+            elif route == "/api/draw-decline":
+                p["offer"] = None
+                db.execute(
+                    "UPDATE games SET payload=? WHERE id=?", (json.dumps(p), g["id"])
+                )
             elif route == "/api/draw":
                 if p.get("offer") and p["offer"] != side:
                     finish(g, "draw", "Ничья по соглашению")
