@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="440" viewBox="0 0 1280 440" role="img" aria-labelledby="title desc"><title id="title">Doctor Chess</title><desc id="desc">Добрая шахматная комната в красно-бело-золотой гамме. Доктор в наушниках, винил и шахматы.</desc><defs><pattern id="squares" width="80" height="80" patternUnits="userSpaceOnUse"><rect width="40" height="40" fill="#a92924"/><rect x="40" y="40" width="40" height="40" fill="#a92924"/></pattern></defs><rect width="1280" height="440" rx="18" fill="#fffaf0"/><rect x="14" y="14" width="1252" height="412" rx="12" fill="none" stroke="#c5a156" stroke-width="2"/><path d="M40 44h1200M40 396h1200" stroke="#e5ce9c"/><rect x="42" y="72" width="62" height="62" rx="5" fill="#b72e28" transform="rotate(-4 73 103)"/><text x="73" y="115" text-anchor="middle" font-family="serif" font-size="37" fill="#f3d89a">医</text><text x="129" y="116" font-family="Georgia,serif" font-size="53" fill="#88231e">Doctor Chess</text><text x="48" y="177" font-family="Arial,sans-serif" font-size="19" letter-spacing="3" fill="#a47d3b">GOOD MOVES · GOOD MOOD</text><text x="48" y="245" font-family="Georgia,serif" font-size="35" fill="#5d3326">По одной партии за раз.</text><text x="49" y="287" font-family="Arial,sans-serif" font-size="19" fill="#8b7962">Играйте с друзьями. Учитесь с доктором. Находите свой ход.</text><g font-family="Arial,sans-serif" font-size="15" fill="#a52d24"><rect x="48" y="324" width="150" height="38" rx="4" fill="#f6e7c8"/><text x="123" y="349" text-anchor="middle">ONLINE CHESS</text><rect x="210" y="324" width="150" height="38" rx="4" fill="#f6e7c8"/><text x="285" y="349" text-anchor="middle">DJ DOCTOR</text><rect x="372" y="324" width="150" height="38" rx="4" fill="#f6e7c8"/><text x="447" y="349" text-anchor="middle">STUDY ROOM</text></g><rect x="970" y="45" width="250" height="350" rx="12" fill="url(#squares)" opacity=".06"/><circle cx="1070" cy="224" r="152" fill="#f6e9cf"/><svg x="925" y="103" width="295" height="250" viewBox="0 0 140 115">
+            <circle cx="69" cy="56" r="39" fill="#f6deb2" />
+            <path d="M29 55V44c0-48 81-48 81 0v11" fill="none" stroke="#476c5d" stroke-width="8" />
+            <rect x="22" y="44" width="13" height="28" rx="6" fill="#476c5d" />
+            <rect x="104" y="44" width="13" height="28" rx="6" fill="#476c5d" />
+            <path
+              d="M49 51q6-7 12 0m17 0q6-7 12 0m-35 17q15 17 30 0"
+              fill="none"
+              stroke="#72543e"
+              stroke-width="3.5"
+              stroke-linecap="round"
+            />
+            <path d="M41 29q29-24 58 0l-5 10H46Z" fill="#fff8eb" stroke="#c6ab83" />
+            <path d="M65 19h10m-5-5v10" stroke="#d66b51" stroke-width="4" stroke-linecap="round" />
+            <circle cx="44" cy="63" r="5" fill="#e59a7a" />
+            <circle cx="96" cy="63" r="5" fill="#e59a7a" />
+            <path d="M22 100h96" stroke="#476c5d" stroke-width="5" stroke-linecap="round" />
+            <circle cx="53" cy="98" r="15" fill="#476c5d" />
+            <circle cx="89" cy="98" r="15" fill="#476c5d" />
+            <circle cx="53" cy="98" r="5" fill="#e9bd79" />
+            <circle cx="89" cy="98" r="5" fill="#e9bd79" /></svg><text x="1130" y="376" font-family="Georgia,serif" font-style="italic" font-size="25" fill="#a57642" transform="rotate(-8 1130 376)">DJ Doctor</text></svg>
