@@ -139,6 +139,9 @@
             <div><strong id="bottom">Вы</strong><small id="bottom-meta">Белые начинают</small></div>
             <span class="clock" id="clock-bottom">05:00</span>
           </div>
+          <div class="premove-bar" id="premove-bar" hidden>
+            <span id="premove-caption"></span><button id="cancel-premove">Отменить ×</button>
+          </div>
           <div class="variation-bar" id="variation-bar" hidden>
             <span id="variation-label"></span
             ><button id="return-original">Вернуться к партии ↩</button>
@@ -206,6 +209,11 @@
               </button>
             </div>
             <button class="classical" data-control="30+0">Для неспешной игры <b>30 + 0</b></button
+            ><label class="premove-setting" id="premove-setting"
+              ><input type="checkbox" id="premove-enabled" /> Предварительный ход<small
+                >На ходе соперника запланируйте свой ответ. Он выполнится, только если останется
+                допустимым.</small
+              ></label
             ><button class="primary" id="new">Найти соперника <span>↗</span></button>
             <p class="queue-note" id="queue-note">Рейтинговая партия · случайный соперник</p>
             <div class="game-actions" id="game-actions" hidden>
@@ -267,6 +275,7 @@
     <script src="/studio.js"></script>
     <script src="/workbench.js"></script>
     <script src="/club.js"></script>
+    <script src="/premoves.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

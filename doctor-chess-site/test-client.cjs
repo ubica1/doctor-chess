@@ -127,6 +127,7 @@ vm.runInContext(fs.readFileSync('dist/notation.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/studio.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/workbench.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/club.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync('dist/premoves.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/app.js', 'utf8'), context);
 const run = (src) => vm.runInContext(src, context);
 async function appTests() {
@@ -262,6 +263,52 @@ async function appTests() {
   assert.equal(run('s.b[52]'), 'P');
   assert.equal(run('canInteract()'), true);
   assert.equal(run("localStorage.getItem('dc-bot-side')"), 'w');
+
+  run(
+    "mode='online';game=null;resetBoard();premoveEnabled=true;g={id:'premove-game',control:'5+0',category:'blitz',you:'b',state:initial(),moves:[],last:[],clocks:{w:300,b:300},white:user,black:user,result:null};acceptGame(g)"
+  );
+  await run('selectSquare(12)');
+  await run('selectSquare(28)');
+  assert.equal(run('premove.to'), 28);
+  assert.equal(run('s.b[12]'), 'p', 'planning must not move a piece yet');
+  let premoveRequests = 0;
+  const confirmed = run(
+    "(()=>{const first={from:52,to:36,promotion:'q',piece:'P'};const state=apply(initial(),52,36);return {...g,state,moves:[first],last:[52,36]}})()"
+  );
+  const accepted = run(
+    "(()=>{const state=apply(apply(initial(),52,36),12,28);return {...g,state,moves:[{from:52,to:36,promotion:'q',piece:'P'},{from:12,to:28,promotion:'q',piece:'p'}],last:[12,28]}})()"
+  );
+  networkGame = accepted;
+  pendingFetch = async (url) => {
+    if (url.endsWith('/move')) {
+      premoveRequests++;
+      return { ok: true, json: async () => ({ game: accepted }) };
+    }
+    return { ok: true, json: async () => ({ user: run('user'), game: accepted, queued: false }) };
+  };
+  context.confirmed = confirmed;
+  run('acceptGame(confirmed)');
+  await new Promise((r) => setImmediate(r));
+  assert.equal(premoveRequests, 1);
+  assert.equal(run('s.b[28]'), 'p');
+  assert.equal(run('premove'), null);
+  pendingFetch = null;
+  run(
+    "clearPremove();game=null;const records=[{from:52,to:36},{from:12,to:28},{from:59,to:31},{from:1,to:18}];const line=ChessNotation.replay(initial(),records);g={...g,id:'checking-game',state:line.positions.at(-1),moves:records,last:[1,18],result:null};acceptGame(g)"
+  );
+  await run('selectSquare(6)');
+  await run('selectSquare(21)');
+  assert.equal(run('premove.from'), 6);
+  run(
+    'acceptGame({...g,state:apply(g.state,31,13),moves:[...g.moves,{from:31,to:13}],last:[31,13]})'
+  );
+  await new Promise((r) => setImmediate(r));
+  assert.equal(run('premove'), null);
+  assert.equal(run('s.b[6]'), 'n', 'a check must cancel the now-illegal planned knight move');
+  assert.equal(premoveRequests, 1);
+  console.log(
+    'PASS: premove waits, executes once on confirmed turn, and is cancelled when a check makes it illegal'
+  );
   console.log(
     'PASS: bot color switches after opening, confirmation preserves current game, new training honors color'
   );

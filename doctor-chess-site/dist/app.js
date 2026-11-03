@@ -221,6 +221,7 @@ async function ratings() {
   }
 }
 function resetBoard() {
+  clearPremove();
   stopStudy();
   variationEditing = false;
   reviewIndex = null;
@@ -274,11 +275,12 @@ function render() {
       onClick: selectSquare,
       onPick: (i) => {
         selected = i;
+        if (i < 0) clearPremove();
         render();
       },
-      canDrag: (i) => canInteract() && color(s.b[i]) === s.turn,
+      canDrag: selectablePiece,
       onDrop: (i, j) => {
-        if (canInteract() && legal(s, i).includes(j)) {
+        if (selectablePiece(i) && moveTargets(i).includes(j)) {
           selected = i;
           selectSquare(j);
         } else {
@@ -299,7 +301,7 @@ function render() {
     displayed,
     flipped,
     selected,
-    selected >= 0 && reviewIndex === null ? legal(s, selected) : [],
+    selected >= 0 && reviewIndex === null ? moveTargets(selected) : [],
     displayLast,
     check(displayed, displayed.turn) ? displayed.b.indexOf(displayed.turn === 'w' ? 'K' : 'k') : -1
   );
@@ -448,6 +450,7 @@ function tickClocks() {
   }
 }
 async function selectSquare(i) {
+  if (canQueuePremove()) return planPremove(i);
   if (!canInteract()) return;
   if (selected >= 0 && legal(s, selected).includes(i)) {
     let from = selected;
@@ -571,6 +574,7 @@ function acceptGame(g) {
     updatePanel();
     updatePlayers();
   }
+  consumePremove();
 }
 async function poll() {
   if (polling || busy || !user) return;

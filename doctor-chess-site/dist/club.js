@@ -16,6 +16,7 @@ async function enterMatchedGame(next) {
   return true;
 }
 function updateSocialPanel() {
+  updatePremove();
   const online = mode === 'online',
     finished = online && !!game?.result;
   $('friend-game').disabled = busy || (!!remoteGame && !remoteGame.result);
@@ -175,6 +176,7 @@ async function cancelRematch() {
   }
 }
 function initializeSocial() {
+  initializePremoves();
   $('friend-game').onclick = createFriendGame;
   $('rematch').onclick = requestRematch;
   $('cancel-rematch').onclick = cancelRematch;
