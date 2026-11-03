@@ -1,0 +1,13 @@
+.history/
+*.tar.gz
+**/data/
+**/outputs/
+**/__pycache__/
+*.sqlite3
+*.sqlite3-*
+.env
+.env.*
+!.env.example
+**/.openai/
+*.log
+.DS_Store
