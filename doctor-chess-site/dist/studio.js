@@ -1,5 +1,5 @@
 /* Training, move timeline and archive share one legal game record. */
-let reviewIndex=null,botSide='w',botLevel=2,botThinking=false,botWorker=null,botGeneration=0,hintWorker=null,hintMove=null,hintKey='',archiveInfo=null,localArchiveId=null,lineCache=null,lineHistory=null,lineState=null,timelineKey='';
+let reviewIndex=null,botSide=localStorage.getItem('dc-bot-side')==='b'?'b':'w',botLevel=[1,2,3].includes(Number(localStorage.getItem('dc-bot-level')))?Number(localStorage.getItem('dc-bot-level')):2,botThinking=false,botWorker=null,botGeneration=0,hintWorker=null,hintMove=null,hintKey='',archiveInfo=null,localArchiveId=null,lineCache=null,lineHistory=null,lineState=null,timelineKey='';
 function currentLine(){if(lineHistory===history&&lineState===s&&lineCache)return lineCache;try{if(lineCache&&history.length===lineCache.positions.length&&history.every((p,i)=>p===lineCache.positions[i])){const previous=lineCache.positions.at(-1),record=ChessNotation.infer(previous,s);lineCache={positions:[...lineCache.positions,s],records:[...lineCache.records,record],sans:[...lineCache.sans,ChessNotation.san(previous,record)]}}else lineCache=ChessNotation.describe(history,s)}catch(e){console.warn('Game record',e);lineCache={positions:[s],records:[],sans:[]}}lineHistory=history;lineState=s;return lineCache}
 function shownState(){const line=currentLine();return reviewIndex===null?s:line.positions[Math.max(0,Math.min(reviewIndex,line.positions.length-1))]}
 function positionKey(){const p=shownState();return p.b.join(',')+p.turn+p.rights+p.ep}
@@ -9,7 +9,7 @@ function updateTimeline(){const line=currentLine(),ply=reviewIndex===null?line.r
  $('review-position').textContent=reviewIndex===null?'Сейчас · '+line.records.length+' '+plural(line.records.length,['полуход','полухода','полуходов']):'Просмотр · '+ply+' / '+line.records.length;$('review-first').disabled=ply===0;$('review-prev').disabled=ply===0;$('review-next').disabled=ply>=line.records.length;$('review-live').disabled=reviewIndex===null;
 }
 function updateStudioPanel(){
- const computer=mode==='computer',analysis=mode==='analysis';$('computer').classList.toggle('selected',computer);$('bot-settings').hidden=!computer;$('bot-level').value=String(botLevel);$('bot-side').value=botSide;$('bot-side').disabled=moves.length>0||botThinking;
+ const computer=mode==='computer',analysis=mode==='analysis';$('computer').classList.toggle('selected',computer);$('bot-settings').hidden=!computer;$('bot-level').value=String(botLevel);$('bot-side').value=botSide;$('bot-side').disabled=busy;
  $('controls').hidden=computer||analysis;$('rhythm-label').hidden=computer||analysis;document.querySelector('.classical').hidden=computer||analysis;
  if(computer){$('new').textContent=moves.length?'Новая тренировка ↗':'Начать тренировку ↗';$('new').disabled=busy;$('queue-note').textContent=botThinking?'Доктор обдумывает ответ…':'Можно взять ход назад и попросить подсказку.';$('status').textContent=botThinking?'Доктор думает…':end(s,history)||(s.turn===botSide?'Ваш ход. Без спешки.':'Ход доктора');$('undo').disabled=busy||!history.length||(history.length===1&&botSide==='b')}
  if(analysis){$('new').textContent='Выбрать режим для новой партии';$('queue-note').textContent='Разбор сохранённой партии · кликайте по ходам';$('status').textContent='Разбираем партию: '+(archiveInfo?.white||'Белые')+' — '+(archiveInfo?.black||'Чёрные');$('undo').disabled=true}
@@ -28,9 +28,25 @@ function archiveCurrent(quiet=false){if((!currentLine().records.length&&ChessNot
 async function openLibrary(){let online=[];if(user)try{online=(await api('players/'+encodeURIComponent(user.username))).player.games}catch{}const local=savedGames();show('Партии, к которым возвращаемся.',`<p class="muted">Домашние записи хранятся в этом браузере. Сетевые — в вашем профиле.</p><h3 class="library-label">На этом устройстве</h3><div class="library-list">${local.length?local.map(g=>`<button data-open-local="${g.id}"><span>${escapeHtml(g.tags.White)} — ${escapeHtml(g.tags.Black)}<small>${new Date(g.created).toLocaleDateString('ru-RU')} · ${g.positions.length-1} ${plural(g.positions.length-1,['полуход','полухода','полуходов'])}</small></span><b>${escapeHtml(g.tags.Result)} ↗</b></button>`).join(''):'<p>Сохраните тренировку или домашнюю партию кнопкой под записью ходов.</p>'}</div><h3 class="library-label">Сетевые партии</h3><div class="library-list">${online.length?online.map(g=>`<a href="/review/${g.id}"><span>С ${escapeHtml(g.opponent.username)}<small>${g.control} · ${dateLabel(g.created)}</small></span><b>${{win:'Победа',draw:'Ничья',loss:'Поражение'}[g.result]} ↗</b></a>`).join(''):'<p>Завершённые сетевые партии появятся здесь после игры.</p>'}</div>`);document.querySelectorAll('[data-open-local]').forEach(b=>b.onclick=()=>openLocalReview(b.dataset.openLocal))}
 async function openLocalReview(id){const r=savedGames().find(g=>g.id===id);if(!r)return;try{ChessNotation.describe(r.positions.slice(0,-1),r.positions.at(-1));navigate('/');await changeMode('analysis');archiveInfo={white:r.tags.White,black:r.tags.Black,result:r.tags.Result,created:r.created};history=r.positions.slice(0,-1);s=r.positions.at(-1);moves=currentLine().sans;reviewIndex=0;flipped=false;render()}catch{toast('Не удалось прочитать запись партии')}}
 async function loadReviewGame(id){try{const data=await api('games/'+encodeURIComponent(id)),g=data.game,line=ChessNotation.replay(initial(),g.moves);await changeMode('analysis');archiveInfo={white:g.white,black:g.black,result:g.result==='draw'?'1/2-1/2':g.result==='w'?'1-0':'0-1',created:g.created*1000};history=line.positions.slice(0,-1);s=line.positions.at(-1);moves=line.sans;reviewIndex=0;flipped=false;$('game-page').hidden=false;$('community-page').hidden=true;communityNav('nav-play');document.title='Разбор партии · Doctor Chess';render()}catch(e){toast(e.message);navigate('/')}}
+function restartBotColor(side){
+ if(mode!=='computer'||!['w','b'].includes(side))return;
+ const seed=JSON.parse(JSON.stringify(currentLine().positions[0]));
+ if(history.length)archiveCurrent(true);
+ stopStudy();resetBoard();botSide=side;localStorage.setItem('dc-bot-side',side);s=seed;flipped=side==='b';
+ archiveInfo={white:side==='w'?(user?.username||'Вы'):'DJ Doctor',black:side==='b'?(user?.username||'Вы'):'DJ Doctor',result:'*',created:Date.now()};
+ lineCache=null;render();scheduleBot();
+}
+function requestBotColor(side){
+ $('bot-side').value=botSide;
+ if(busy||side===botSide||!['w','b'].includes(side))return;
+ if(!moves.length&&!botThinking)return restartBotColor(side);
+ show(side==='b'?'Новую тренировку чёрными?':'Новую тренировку белыми?',`<p>Текущая тренировка сохранится в «Мои партии». Новая начнётся с её стартовой позиции, а вы сыграете ${side==='b'?'чёрными':'белыми'}.</p><button class="primary" id="confirm-color">Сохранить и начать ${side==='b'?'чёрными':'белыми'}</button><button class="form-switch" id="cancel-color">Продолжить текущую тренировку</button>`);
+ $('confirm-color').onclick=()=>{$('modal').close();restartBotColor(side)};
+ $('cancel-color').onclick=()=>$('modal').close();
+}
 function initializeStudio(){initializeWorkbench();
  $('computer').onclick=()=>changeMode('computer');$('nav-library').onclick=openLibrary;$('hint').onclick=askHint;$('export-pgn').onclick=exportPGN;$('save-game').onclick=()=>game?toast('Сетевая партия сохраняется автоматически.'):archiveCurrent();
  $('review-first').onclick=()=>setReview(0);$('review-prev').onclick=()=>setReview((reviewIndex??currentLine().records.length)-1);$('review-next').onclick=()=>setReview((reviewIndex??currentLine().records.length)+1);$('review-live').onclick=()=>setReview(currentLine().records.length);
- $('bot-level').onchange=()=>{botLevel=Number($('bot-level').value);stopStudy();render();scheduleBot()};$('bot-side').onchange=()=>{if(moves.length)return;botSide=$('bot-side').value;stopStudy();flipped=botSide==='b';render();scheduleBot()};
+ $('bot-level').onchange=()=>{botLevel=Number($('bot-level').value);localStorage.setItem('dc-bot-level',String(botLevel));stopStudy();render();scheduleBot()};$('bot-side').onchange=()=>requestBotColor($('bot-side').value);
  document.addEventListener('keydown',e=>{if($('game-page').hidden||$('modal').open||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='ArrowLeft'){e.preventDefault();setReview((reviewIndex??currentLine().records.length)-1)}if(e.key==='ArrowRight'){e.preventDefault();setReview((reviewIndex??currentLine().records.length)+1)}});
 }
