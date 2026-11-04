@@ -16,6 +16,7 @@ python server.py
 node test-engine.cjs
 node test-study.cjs
 node test-client.cjs
+node test-doctor.cjs
 python -m unittest test_server -v
 ```
 
@@ -23,7 +24,7 @@ python -m unittest test_server -v
 
 - `server.py` — HTTP, аккаунты, сессии, очередь и сетевые партии.
 - `social.py` — приглашения, дружеские встречи и реванши.
-- `dist/` — интерфейс, правила, учебный движок и инструменты разбора.
+- `dist/` — интерфейс, правила, Stockfish, авторские дебюты, школа и инструменты разбора.
 - `data/` — рабочая SQLite-база. Не входит в Git.
 - `outputs/` — локальные результаты проверок. Не входят в Git.
 
