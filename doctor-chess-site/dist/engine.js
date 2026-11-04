@@ -173,23 +173,48 @@ function legal(state, i) {
 function allMoves(state) {
   return state.b.some((p, i) => color(p) === state.turn && legal(state, i).length);
 }
+function insufficientMaterial(s) {
+  const men = s.b.map((p, i) => ({ p, i })).filter(({ p }) => p && p.toLowerCase() !== 'k');
+  if (!men.length) return true;
+  if (men.length === 1 && 'bn'.includes(men[0].p.toLowerCase())) return true;
+  // All remaining bishops run on the same color; no pawn or knight can create a mating net.
+  return (
+    men.every(({ p }) => p.toLowerCase() === 'b') &&
+    new Set(men.map(({ i }) => (Math.floor(i / 8) + (i % 8)) % 2)).size === 1
+  );
+}
+function repetitionKey(s) {
+  const ep =
+    s.ep >= 0 &&
+    s.b.some((p, i) => color(p) === s.turn && p.toLowerCase() === 'p' && legal(s, i).includes(s.ep))
+      ? s.ep
+      : -1;
+  return s.b.join(',') + ':' + s.turn + ':' + s.rights + ':' + ep;
+}
 function end(s, history = []) {
   if (!allMoves(s))
     return check(s, s.turn)
       ? (s.turn === 'w' ? 'Чёрные' : 'Белые') + ' победили. Мат.'
       : 'Ничья — пат.';
   if (s.half >= 100) return 'Ничья — правило 50 ходов.';
-  const pieces = s.b.filter(Boolean);
-  if (
-    pieces.length === 2 ||
-    (pieces.length === 3 && pieces.some((p) => 'bn'.includes(p.toLowerCase())))
-  )
-    return 'Ничья — недостаточно материала.';
-  const key = (x) => x.b.join(',') + x.turn + x.rights + x.ep;
-  if (history.filter((x) => key(x) === key(s)).length >= 2)
+  if (insufficientMaterial(s)) return 'Ничья — недостаточно материала.';
+  const key = repetitionKey(s);
+  if (history.filter((x) => repetitionKey(x) === key).length >= 2)
     return 'Ничья — троекратное повторение.';
   return '';
 }
 
 if (typeof module !== 'undefined')
-  module.exports = { initial, color, opp, name, legal, apply, check, allMoves, end };
+  module.exports = {
+    initial,
+    color,
+    opp,
+    name,
+    legal,
+    apply,
+    check,
+    allMoves,
+    end,
+    insufficientMaterial,
+    repetitionKey,
+  };
