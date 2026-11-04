@@ -6,3 +6,4 @@
 *.wasm binary
 *.zip binary
 *.nnue binary
+doctor-chess-site/dist/vendor/stockfish/** -text
