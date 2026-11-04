@@ -221,8 +221,12 @@ async function ratings() {
   }
 }
 function resetBoard() {
+  cancelGameReport();
   clearPremove();
   stopStudy();
+  botMoveSource = '';
+  botProblem = false;
+  botEngineNote = 'Stockfish 19 Lite · репертуар Доктора';
   variationEditing = false;
   reviewIndex = null;
   archiveInfo = null;
@@ -534,6 +538,7 @@ async function makeMove(i, j, p) {
       if (end(s, history)) archiveCurrent(true);
       else scheduleBot();
     }
+    if (mode === 'local' && end(s, history)) archiveCurrent(true);
   }
 }
 function acceptGame(g) {
@@ -667,7 +672,7 @@ async function changeMode(m) {
 async function start() {
   if (busy) return;
   if (mode === 'analysis') return changeMode('computer');
-  if (mode === 'computer' && botThinking) {
+  if (mode === 'computer' && (botThinking || botProblem)) {
     stopStudy();
     render();
     return scheduleBot();

@@ -88,6 +88,7 @@ let pendingFetch = null,
   networkGame = null;
 const context = {
   console,
+  queueMicrotask,
   document,
   window: { addEventListener() {} },
   localStorage: storage(),
@@ -124,6 +125,9 @@ const context = {
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('dist/engine.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/notation.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync('dist/outcome.js', 'utf8'), context);
+context.DoctorBook = { lookup: () => null, candidates: () => [] };
+vm.runInContext(fs.readFileSync('dist/game-report.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/studio.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/workbench.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/club.js', 'utf8'), context);
@@ -182,6 +186,12 @@ async function appTests() {
       this.terminated = true;
     }
   };
+  context.DoctorEngine = context.Worker;
+  context.DoctorEngine.uci = (m) =>
+    'abcdefgh'[m.from % 8] +
+    (8 - Math.floor(m.from / 8)) +
+    'abcdefgh'[m.to % 8] +
+    (8 - Math.floor(m.to / 8));
   context.crypto = { randomUUID: () => 'test-local-game' };
   run("mode='computer';game=null;botSide='w';resetBoard();render()");
   await run("makeMove(52,36,'q')");
@@ -309,6 +319,59 @@ async function appTests() {
   console.log(
     'PASS: premove waits, executes once on confirmed turn, and is cancelled when a check makes it illegal'
   );
+  run(
+    "stopStudy();game=null;mode='computer';botSide='w';resetBoard();$('modal').close();s=ChessNotation.fromPGN('1.f3 e5 2.g4 Qh4# *').positions.at(-1);render()"
+  );
+  assert.equal(run("$('finish-title').textContent"), 'Вы проиграли');
+  assert(run("$('result-modal').open"));
+  run("$('result-modal').close();render();render()");
+  assert.equal(
+    run("$('result-modal').open"),
+    false,
+    'Repeated rendering must not reopen a dismissed result'
+  );
+  run("mode='online';game={result:null};updateOutcome()");
+  assert.equal(
+    run("$('result-card').hidden"),
+    true,
+    'Unconfirmed online mate cannot announce a result'
+  );
+  run("game=null;mode='computer';botSide='w';resetBoard();render();askHint()");
+  const oldHint = workers.at(-1);
+  run('askHint()');
+  const newHint = workers.at(-1);
+  oldHint.onmessage({ data: { move: { from: 52, to: 36 }, score: 0 } });
+  assert(!newHint.terminated, 'A late hint must not terminate a newer request');
+  run('stopStudy()');
+  context.DoctorBook = require('./dist/doctor-book.js');
+  run("game=null;mode='computer';resetBoard();botSide='b';scheduleBot();stopStudy();mode='local'");
+  await new Promise((r) => setImmediate(r));
+  assert.equal(run('history.length'), 0, 'Cancelled book microtask cannot move on a new board');
+  run("mode='computer';botSide='b';scheduleBot()");
+  await new Promise((r) => setImmediate(r));
+  assert.equal(run('moves[0]'), 'e4');
+  assert.equal(run('s.turn'), 'b');
+  run("mode='local';game=null;resetBoard();history=[s];s=apply(s,52,36);moves=['e4'];render()");
+  const report = run('analyzeWholeGame()');
+  const oldReport = workers.at(-1);
+  run('cancelGameReport()');
+  const freshReport = run('analyzeWholeGame()');
+  const freshWorker = workers.at(-1);
+  oldReport.onmessage({ data: { type: 'cp', score: 0, move: { from: 52, to: 36 } } });
+  await report;
+  assert.equal(
+    run('reportWorker') === freshWorker,
+    true,
+    'An old report cannot clear the new engine'
+  );
+  run('cancelGameReport()');
+  await freshReport;
+  assert.equal(run('reportRunning'), false);
+  assert.equal(run('reportData.rows.length'), 0);
+  console.log('PASS: cancelled full-game analysis isolates subsequent engine requests');
+  console.log(
+    'PASS: result popup once, server confirmation, cancelled book move and stale hint isolation'
+  );
   console.log(
     'PASS: bot color switches after opening, confirmation preserves current game, new training honors color'
   );
@@ -323,9 +386,15 @@ async function appTests() {
   );
 }
 function boardTests() {
+  const removedEvents = [];
   const boardContext = {
     document,
-    window: { addEventListener() {} },
+    window: {
+      addEventListener() {},
+      removeEventListener(name) {
+        removedEvents.push(name);
+      },
+    },
     requestAnimationFrame: () => 1,
     cancelAnimationFrame() {},
     module: { exports: {} },
@@ -381,6 +450,8 @@ function boardTests() {
   b.down(ev(350, 350));
   b.up(ev(350, 350));
   assert.equal(clicked, 36, 'tap/click must stay available');
+  b.destroy();
+  assert.deepEqual(removedEvents, ['blur'], 'Destroyed school boards release their window handler');
   console.log('PASS: stable piece/square nodes, drag, cancel, orientation, tap');
 }
 appTests()

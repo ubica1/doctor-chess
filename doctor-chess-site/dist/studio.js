@@ -5,11 +5,15 @@ let reviewIndex = null,
     ? Number(localStorage.getItem('dc-bot-level'))
     : 2,
   botThinking = false,
+  botProblem = false,
+  botEngineNote = 'Stockfish 19 Lite · репертуар Доктора',
+  botMoveSource = '',
   botWorker = null,
   botGeneration = 0,
   hintWorker = null,
   hintMove = null,
   hintKey = '',
+  hintGeneration = 0,
   archiveInfo = null,
   localArchiveId = null,
   lineCache = null,
@@ -63,7 +67,7 @@ function studyTags() {
   if (game?.result)
     result = game.result === 'draw' ? '1/2-1/2' : game.result === 'w' ? '1-0' : '0-1';
   else if (end(s, history))
-    result = check(s, s.turn) ? (s.turn === 'w' ? '0-1' : '1-0') : '1/2-1/2';
+    result = !allMoves(s) && check(s, s.turn) ? (s.turn === 'w' ? '0-1' : '1-0') : '1/2-1/2';
   const date = new Date(archiveInfo?.created || game?.created * 1000 || Date.now())
     .toLocaleDateString('sv-SE')
     .replace(/-/g, '.');
@@ -132,7 +136,11 @@ function updateStudioPanel() {
   $('rhythm-label').hidden = computer || analysis;
   document.querySelector('.classical').hidden = computer || analysis;
   if (computer) {
-    $('new').textContent = moves.length ? 'Новая тренировка ↗' : 'Начать тренировку ↗';
+    $('new').textContent = botProblem
+      ? 'Продолжить ход доктора →'
+      : moves.length
+        ? 'Новая тренировка ↗'
+        : 'Начать тренировку ↗';
     $('new').disabled = busy;
     $('queue-note').textContent = botThinking
       ? 'Доктор обдумывает ответ…'
@@ -140,7 +148,8 @@ function updateStudioPanel() {
     $('status').textContent = botThinking
       ? 'Доктор думает…'
       : end(s, history) || (s.turn === botSide ? 'Ваш ход. Без спешки.' : 'Ход доктора');
-    $('undo').disabled = busy || !history.length || (history.length === 1 && botSide === 'b');
+    $('undo').disabled =
+      busy || !history.length || (history.length === 1 && history[0].turn !== botSide);
   }
   if (analysis) {
     $('new').textContent = 'Выбрать режим для новой партии';
@@ -163,13 +172,14 @@ function updateStudioPanel() {
   $('hint').disabled = busy || botThinking || !!active();
   $('hint').title = active()
     ? 'Подсказки доступны после завершения рейтинговой партии'
-    : 'Учебная оценка локального движка';
+    : 'Разбор Stockfish 19 Lite · лучший ход и продолжение';
   $('export-pgn').disabled = !currentLine().records.length;
   $('save-game').disabled = !currentLine().records.length;
   if (hintKey && hintKey !== positionKey()) {
     hintMove = null;
     hintKey = '';
     $('hint-note').textContent = '';
+    $('coach-panel').hidden = true;
   }
   for (const square of boardView?.squares || []) {
     square.classList.toggle('hint-from', hintMove?.from === Number(square.dataset.index));
@@ -178,6 +188,16 @@ function updateStudioPanel() {
   updateTimeline();
   updateWorkbench();
   updateSocialPanel();
+  updateOutcome();
+  updateGameReport();
+  if (computer) {
+    $('engine-status').textContent = botEngineNote;
+    $('opening-status').textContent =
+      botMoveSource ||
+      (botSide === 'w'
+        ? 'Доктор играет Защиту Доктора: …e6, …h6, …Ke7.'
+        : 'Доктор играет Атаку Доктора: e4 и Ke2.');
+  }
 }
 function updateBotPlayers() {
   if (mode !== 'computer' && mode !== 'analysis') return;
@@ -194,9 +214,11 @@ function updateBotPlayers() {
       $(pos + '-meta').textContent =
         side === botSide
           ? 'Учебная партия'
-          : ['Знакомство · мягкий ритм', 'Партнёр · средний ритм', 'Собранный · внимательная игра'][
-              botLevel - 1
-            ];
+          : botMoveSource.includes('Резервный')
+            ? 'Учебный движок · резерв'
+            : ['Stockfish · спокойный', 'Stockfish · сильный', 'Stockfish · максимум'][
+                botLevel - 1
+              ];
     }
     $('clock-' + pos).textContent = '∞';
     $('clock-' + pos).classList.remove('ticking', 'low');
@@ -208,20 +230,42 @@ function stopStudy() {
   botWorker = null;
   botThinking = false;
   hintWorker?.terminate();
+  hintGeneration++;
   hintWorker = null;
   hintMove = null;
   hintKey = '';
   if ($('hint-note')) $('hint-note').textContent = '';
+  $('coach-panel').hidden = true;
+}
+function enginePosition() {
+  const line = currentLine();
+  return (
+    'position fen ' +
+    ChessNotation.fen(line.positions[0]) +
+    (line.records.length
+      ? ' moves ' +
+        line.records
+          .map((m, i) =>
+            DoctorEngine.uci({
+              ...m,
+              promotes:
+                line.positions[i].b[m.from].toLowerCase() === 'p' && (m.to < 8 || m.to >= 56),
+            })
+          )
+          .join(' ')
+      : '')
+  );
 }
 function scheduleBot() {
   if (mode !== 'computer' || s.turn === botSide || end(s, history) || botThinking || busy) return;
   botThinking = true;
+  botProblem = false;
   const generation = ++botGeneration,
     board = s;
   render();
   try {
-    botWorker = new Worker('/doctor-worker.js');
-    botWorker.onmessage = async (e) => {
+    const book = DoctorBook.lookup(board);
+    const onMove = async (e) => {
       if (generation !== botGeneration) return;
       const data = e.data;
       botWorker?.terminate();
@@ -229,30 +273,73 @@ function scheduleBot() {
       botThinking = false;
       if (mode !== 'computer' || s !== board) return;
       if (data.error || !data.move) {
+        botProblem = true;
+        render();
         toast('Доктор не смог выбрать ход. Нажмите «Продолжить».');
         $('new').textContent = 'Продолжить';
         return;
       }
       const m = data.move;
       if (color(s.b[m.from]) !== s.turn || !legal(s, m.from).includes(m.to)) {
+        botProblem = true;
+        render();
         toast('Не удалось подтвердить ход компьютера');
         return;
       }
+      botEngineNote = data.engine || 'Дебютная книга Доктора';
+      botMoveSource =
+        data.source === 'book'
+          ? data.title + ' · стр. ' + data.page
+          : data.source === 'fallback'
+            ? 'Резервный движок · Stockfish недоступен'
+            : data.source === 'plan'
+              ? 'Продолжает построение Доктора · расчёт Stockfish'
+              : 'Вне книжной линии · тактический расчёт Stockfish';
       await makeMove(m.from, m.to, m.promotion);
     };
+    if (book) {
+      botEngineNote = 'Ход из учебника Доктора';
+      queueMicrotask(() => onMove({ data: book }));
+      return;
+    }
+    botEngineNote = 'Stockfish 19 Lite · рассчитывает позицию…';
+    botWorker?.terminate();
+    botWorker = new DoctorEngine();
+    botWorker.onmessage = onMove;
     botWorker.onerror = () => {
       if (generation !== botGeneration) return;
-      stopStudy();
+      // Stay playable offline/on unsupported WASM devices; never label fallback Stockfish.
+      botWorker?.terminate();
+      botEngineNote = 'Stockfish недоступен · резервный движок';
+      botWorker = new Worker('/doctor-worker.js');
+      botWorker.onmessage = (e) =>
+        onMove({ data: { ...e.data, engine: 'Учебный движок', source: 'fallback' } });
+      botWorker.onerror = () => {
+        stopStudy();
+        botProblem = true;
+        render();
+        toast('Движок недоступен. Нажмите «Продолжить».');
+      };
+      botWorker.postMessage({
+        id: generation,
+        state: board,
+        options: { level: 3, budgetMs: 1800, searchmoves: DoctorBook.candidates(board) },
+      });
       render();
-      toast('Не удалось запустить компьютер. Обновите страницу.');
     };
     botWorker.postMessage({
       id: generation,
       state: board,
-      options: { level: botLevel, budgetMs: [250, 850, 1800][botLevel - 1] },
+      line: enginePosition(),
+      options: {
+        level: botLevel,
+        budgetMs: [500, 1400, 3000][botLevel - 1],
+        searchmoves: DoctorBook.candidates(board),
+      },
     });
   } catch {
     stopStudy();
+    botProblem = true;
     render();
     toast('Этот браузер не поддерживает учебный движок');
   }
@@ -260,11 +347,13 @@ function scheduleBot() {
 function askHint() {
   if (active() || botThinking || busy) return;
   hintWorker?.terminate();
+  const request = ++hintGeneration;
   const board = shownState(),
     key = positionKey();
   $('hint-note').textContent = 'Посмотрим на позицию вместе…';
-  hintWorker = new Worker('/doctor-worker.js');
+  hintWorker = new DoctorEngine();
   hintWorker.onmessage = (e) => {
+    if (request !== hintGeneration) return;
     hintWorker?.terminate();
     hintWorker = null;
     if (key !== positionKey()) return;
@@ -279,20 +368,52 @@ function askHint() {
     $('hint-note').textContent =
       'Попробуйте ' +
       san +
-      ' · учебная оценка ' +
-      (d.score >= 0 ? '+' : '') +
-      (d.score / 100).toFixed(1) +
-      ' за белых';
+      '. ' +
+      (d.type === 'mate'
+        ? (d.score > 0 ? 'Белые' : 'Чёрные') + ' ставят мат при лучшей игре.'
+        : 'Оценка за белых: ' + (d.score >= 0 ? '+' : '') + (d.score / 100).toFixed(1));
+    showCoachLine(board, d);
     render();
   };
   hintWorker.onerror = () => {
+    if (request !== hintGeneration) return;
+    hintWorker?.terminate();
+    hintWorker = null;
     $('hint-note').textContent = 'Подсказка недоступна. Попробуйте ещё раз.';
   };
   hintWorker.postMessage({
     id: 1,
     state: board,
-    options: { level: 3, budgetMs: 1200, maxDepth: 3 },
+    options: { level: 3, budgetMs: 1800 },
   });
+}
+function showCoachLine(position, data) {
+  let state = position;
+  const sans = [];
+  for (const text of (data.pv || []).slice(0, 8)) {
+    const move = DoctorEngine.move(text);
+    if (
+      !move ||
+      color(state.b[move.from]) !== state.turn ||
+      !legal(state, move.from).includes(move.to)
+    )
+      break;
+    sans.push(
+      (state.turn === 'w' ? state.fullmove + '. ' : sans.length ? '' : state.fullmove + '… ') +
+        ChessNotation.san(state, move)
+    );
+    state = apply(state, move.from, move.to, move.promotion);
+  }
+  $('coach-panel').hidden = false;
+  $('coach-score').textContent =
+    data.type === 'mate'
+      ? (data.score > 0 ? 'Белые' : 'Чёрные') + ': мат в ' + Math.abs(data.score)
+      : (data.score >= 0 ? '+' : '') + (data.score / 100).toFixed(1);
+  $('coach-line').textContent = sans.join('  ') || 'Продолжение недоступно';
+  $('coach-depth').textContent = 'Stockfish 19 Lite · глубина ' + data.depth + ' · оценка за белых';
+  $('coach-fill').style.width =
+    (data.type === 'mate' ? (data.score > 0 ? 100 : 0) : 100 / (1 + Math.exp(-data.score / 350))) +
+    '%';
 }
 function exportPGN() {
   const content = ChessNotation.pgn(currentLine(), studyTags()),
@@ -440,6 +561,15 @@ function requestBotColor(side) {
   $('cancel-color').onclick = () => $('modal').close();
 }
 function initializeStudio() {
+  initializeOutcome();
+  initializeGameReport();
+  $('engine-credits').onclick = () =>
+    show(
+      'Движок на хорошей волне.',
+      '<p>DJ Doctor использует неизменённую сборку Stockfish.js 19.0.1 Lite Single (GPLv3). Авторы: команда Stockfish, Nathan Rugg, Chess.com и участники проекта.</p><p><a href="/vendor/stockfish/Copying.txt" target="_blank" rel="noopener">Лицензия GNU GPLv3 ↗</a></p><p><a href="/vendor/stockfish/source-19.0.1.zip" download>Соответствующий исходный код и скрипты сборки ↓</a></p><p><a href="/vendor/stockfish/nn-61e7af4bb97d.nnue" download>Нейросеть Lite для сборки ↓</a></p><p><a href="https://github.com/nmrugg/stockfish.js/tree/0d5dd7944f88c817c07a26bc4fb1905d5f9c46d6" target="_blank" rel="noopener">Проект Stockfish.js ↗</a></p><p>Дебютный репертуар и учебная мастерская основаны на книге DJ Doctor «Атака Доктора и Защита Доктора», 2026.</p>'
+    );
+  $('doctor-academy').onclick = () => navigate('/academy');
+  $('nav-academy').onclick = () => navigate('/academy');
   initializeWorkbench();
   initializeSocial();
   $('computer').onclick = () => changeMode('computer');

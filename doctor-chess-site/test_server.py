@@ -167,7 +167,12 @@ class Integration(unittest.TestCase):
         with anon.open(BASE + "/player/Alpha") as r:
             html = r.read().decode()
             self.assertEqual(r.status, 200)
-            self.assertIn('src="/community.js"', html)
+        self.assertRegex(html, r'src="/community\.js(?:\?[^\"]+)?"')
+        with anon.open(BASE + "/academy") as r:
+            self.assertIn('src="/academy.js', r.read().decode())
+        with anon.open(BASE + "/vendor/stockfish/stockfish-19-lite-single.wasm") as r:
+            self.assertEqual(r.headers.get_content_type(), "application/wasm")
+            self.assertEqual(r.read()[:4], b"\x00asm")
 
 
 class SocialGames(unittest.TestCase):
@@ -334,7 +339,13 @@ class SocialGames(unittest.TestCase):
         g = call(self.guest, "queue", {"control": "5+0"})[1]["game"]
         gid = g["id"]
         old_white = g["white"]["id"]
-        call(self.guest, "resign", {"game": gid})
+        ended = call(self.guest, "resign", {"game": gid})[1]["game"]
+        change = ended["ratingChange"][ended["you"]]
+        self.assertEqual(change["delta"], -12)
+        self.assertEqual(change["after"], change["before"] - 12)
+        self.assertEqual(
+            call(self.guest, "state")[1]["game"]["ratingChange"], ended["ratingChange"]
+        )
         call(self.host, "games/" + gid + "/rematch", {})
         new = call(self.guest, "games/" + gid + "/rematch", {})[1]["game"]
         self.assertEqual(new["kind"], "rated")

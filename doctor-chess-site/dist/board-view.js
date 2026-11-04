@@ -44,7 +44,12 @@ class ChessBoardView {
         this.onPick(-1);
       }
     });
-    window.addEventListener('blur', () => this.cancel());
+    this.onBlur = () => this.cancel();
+    window.addEventListener('blur', this.onBlur);
+  }
+  destroy() {
+    this.cancel();
+    window.removeEventListener('blur', this.onBlur);
   }
   position(i) {
     const k = this.flipped ? 63 - i : i;

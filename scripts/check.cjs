@@ -13,7 +13,7 @@ const ui = spawnSync(process.execPath, [path.join(__dirname, 'check-ui.cjs')], {
   stdio: 'inherit',
 });
 if (ui.status !== 0) process.exit(ui.status || 1);
-const checks = ['test-engine.cjs', 'test-study.cjs', 'test-client.cjs'];
+const checks = ['test-engine.cjs', 'test-study.cjs', 'test-client.cjs', 'test-doctor.cjs'];
 for (const file of checks) {
   const result = spawnSync(process.execPath, [file], { cwd: app, stdio: 'inherit' });
   if (result.status !== 0) process.exit(result.status || 1);

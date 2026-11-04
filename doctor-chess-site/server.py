@@ -153,6 +153,10 @@ def finish(g, result, reason):
             ).fetchone()[0]
             score = 1 if result == "w" else 0 if result == "b" else 0.5
             delta = round(24 * (score - 1 / (1 + 10 ** ((b - a) / 400))))
+            g["payload"]["ratingChange"] = {
+                "w": {"before": a, "after": a + delta, "delta": delta},
+                "b": {"before": b, "after": b - delta, "delta": -delta},
+            }
             for uid, d, win in [
                 (g["white"], delta, result == "w"),
                 (g["black"], -delta, result == "b"),
@@ -161,6 +165,10 @@ def finish(g, result, reason):
                     "UPDATE ratings SET rating=rating+?,played=played+1,wins=wins+? WHERE user_id=? AND category=?",
                     (d, int(win), uid, g["category"]),
                 )
+            db.execute(
+                "UPDATE games SET payload=? WHERE id=?",
+                (json.dumps(g["payload"]), g["id"]),
+            )
         db.execute("COMMIT")
     except:
         db.execute("ROLLBACK")
@@ -215,6 +223,7 @@ def public_game(g, uid):
         "clocks": clocks,
         "result": g["result"],
         "reason": g["reason"],
+        "ratingChange": p.get("ratingChange"),
         "offer": p.get("offer"),
         "kind": g.get("kind", "rated"),
         "created": g["created"],
@@ -270,7 +279,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.path.startswith("/player/")
             or self.path.startswith("/review/")
             or self.path.startswith("/invite/")
-            or urlparse(self.path).path == "/players"
+            or urlparse(self.path).path in ("/players", "/academy")
         ):
             self.path = "/index.html"
             return super().do_GET()

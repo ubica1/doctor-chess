@@ -34,6 +34,8 @@ function communityNav(which) {
     .forEach((b) => b.classList.toggle('nav-active', b.id === which));
 }
 async function routePage() {
+  academyBoard?.destroy?.();
+  academyBoard = null;
   stopInvitationWatch();
   const path = location.pathname;
   communityRequest++;
@@ -46,6 +48,7 @@ async function routePage() {
   }
   if (path.startsWith('/invite/')) return loadInvitation(path.slice(8));
   if (path === '/players') return showPlayers();
+  if (path === '/academy') return showAcademy();
   if (path.startsWith('/review/')) return loadReviewGame(path.slice(8));
   if (path.startsWith('/player/')) {
     try {
@@ -213,6 +216,7 @@ document.addEventListener('click', (e) => {
     url.origin === location.origin &&
     (url.pathname === '/' ||
       url.pathname === '/players' ||
+      url.pathname === '/academy' ||
       url.pathname.startsWith('/player/') ||
       url.pathname.startsWith('/review/') ||
       url.pathname.startsWith('/invite/'))

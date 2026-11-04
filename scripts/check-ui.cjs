@@ -15,6 +15,6 @@ for (const source of sources)
 for (const source of sources)
   for (const m of source.matchAll(/\$\(\s*["']([\w-]+)["']\s*\)/g))
     assert(available.has(m[1]), 'Referenced UI element is missing: ' + m[1]);
-for (const m of html.matchAll(/(?:src|href)="(\/(?:[\w-]+\.(?:js|css|svg)))"/g))
+for (const m of html.matchAll(/(?:src|href)="(\/(?:[\w-]+\.(?:js|css|svg)))(?:\?[^" ]*)?"/g))
   assert(fs.existsSync(path.join(dist, m[1].slice(1))), 'Missing local asset: ' + m[1]);
 console.log('PASS: unique UI IDs, static/dynamic controls and local assets');

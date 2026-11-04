@@ -48,10 +48,14 @@ const DoctorSearch = (() => {
         }
     return out.sort((a, b) => b.order - a.order);
   }
-  function search(state, { level = 2, budgetMs = 900, maxDepth } = {}) {
+  function search(state, { level = 2, budgetMs = 900, maxDepth, searchmoves } = {}) {
     const start = Date.now(),
       deadline = start + Math.max(25, budgetMs),
-      root = moveList(state);
+      root = moveList(state).filter(
+        (m) =>
+          !searchmoves?.length ||
+          searchmoves.some((x) => x.from === m.from && x.to === m.to && x.promotion === m.promotion)
+      );
     let nodes = 0,
       completedDepth = 0,
       aborted = false,
