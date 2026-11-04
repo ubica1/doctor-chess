@@ -368,6 +368,20 @@ async function appTests() {
   await freshReport;
   assert.equal(run('reportRunning'), false);
   assert.equal(run('reportData.rows.length'), 0);
+  const completedReport = run('analyzeWholeGame()');
+  workers.at(-1).onmessage({ data: { type: 'cp', score: 20, move: { from: 52, to: 36 } } });
+  await new Promise((r) => setImmediate(r));
+  workers.at(-1).onmessage({ data: { type: 'cp', score: 10, move: { from: 12, to: 28 } } });
+  await completedReport;
+  assert.equal(run('reportArchive().length'), 1);
+  run("reportIdentity='';reportData=null;updateGameReport()");
+  assert.equal(run('reportData.rows[0].san'), 'e4', 'Completed analysis survives reopening');
+  run(
+    "{const bad=reportArchive();bad[0].rows[0].grade='injected';localStorage.setItem('dc-reports-v1',JSON.stringify(bad));reportIdentity='';updateGameReport()}"
+  );
+  assert.equal(run('reportData'), null, 'Invalid stored report is rejected');
+  run("localStorage.setItem('dc-reports-v1','broken');reportIdentity='';updateGameReport()");
+  assert.equal(run('reportData'), null);
   console.log('PASS: cancelled full-game analysis isolates subsequent engine requests');
   console.log(
     'PASS: result popup once, server confirmation, cancelled book move and stale hint isolation'

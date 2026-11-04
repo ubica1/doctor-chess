@@ -30,6 +30,53 @@ function reportKey(line = currentLine()) {
     line.records.map((m) => m.from + ':' + m.to + ':' + m.promotion).join(',')
   );
 }
+function reportArchive() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('dc-reports-v1') || '[]');
+    return Array.isArray(saved) ? saved.slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+function restoreGameReport(line, key) {
+  const record = reportArchive().find((r) => r?.key === key);
+  if (
+    !record ||
+    !Array.isArray(record.rows) ||
+    record.rows.length !== Math.min(line.records.length, 200) ||
+    !record.rows.length
+  )
+    return null;
+  const valid = record.rows.every(
+    (r, i) =>
+      r &&
+      r.ply === i + 1 &&
+      r.san === line.sans[i] &&
+      r.side === line.positions[i].turn &&
+      r.number === line.positions[i].fullmove &&
+      typeof r.best === 'string' &&
+      r.best.length < 24 &&
+      typeof r.book === 'boolean' &&
+      ['good', 'inaccuracy', 'mistake', 'blunder'].includes(r.grade) &&
+      Number.isFinite(r.loss) &&
+      r.loss >= 0 &&
+      r.loss < 100000 &&
+      ['cp', 'mate'].includes(r.after?.type) &&
+      Number.isFinite(r.after.score) &&
+      Math.abs(r.after.score) < 100000
+  );
+  return valid ? { rows: record.rows, created: record.created } : null;
+}
+function saveGameReport() {
+  if (!reportData?.rows.length) return;
+  const records = reportArchive().filter((r) => r?.key !== reportIdentity);
+  records.unshift({ key: reportIdentity, rows: reportData.rows, created: Date.now() });
+  try {
+    localStorage.setItem('dc-reports-v1', JSON.stringify(records.slice(0, 8)));
+  } catch {
+    toast('Разбор готов, но в браузере не хватает места для его сохранения.');
+  }
+}
 function cancelGameReport() {
   reportGeneration++;
   reportWorker?.terminate();
@@ -41,12 +88,19 @@ function cancelGameReport() {
 function updateGameReport() {
   const line = currentLine(),
     key = reportKey(line);
+  if (key !== reportIdentity) {
+    if (reportRunning) cancelGameReport();
+    reportIdentity = key;
+    reportData = restoreGameReport(line, key);
+    reportRenderKey = '';
+  }
   $('analyze-game').disabled =
     !!active() || busy || botThinking || !line.records.length || reportRunning;
   $('analyze-game').textContent = reportRunning
     ? 'Разбираем ' + reportProgress + ' / ' + Math.min(line.records.length, 200)
-    : 'Разобрать всю партию';
-  if (key !== reportIdentity && reportRunning) cancelGameReport();
+    : reportData?.rows.length === Math.min(line.records.length, 200) && line.records.length
+      ? 'Пересчитать разбор'
+      : 'Разобрать всю партию';
   $('game-report').hidden = !reportData || key !== reportIdentity || !!active();
   if ($('game-report').hidden) return;
   $('report-cancel').hidden = !reportRunning;
@@ -165,6 +219,7 @@ async function analyzeWholeGame() {
       before = after;
       updateGameReport();
     }
+    if (generation === reportGeneration) saveGameReport();
   } catch {
     if (generation === reportGeneration)
       toast('Расчёт остановлен: Stockfish недоступен. Уже разобранные ходы сохранены на экране.');
