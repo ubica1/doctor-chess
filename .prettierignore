@@ -6,3 +6,5 @@ node_modules
 **/.openai
 **/__pycache__
 *.tar.gz
+
+**/vendor/stockfish
