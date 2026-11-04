@@ -1,5 +1,38 @@
 /* Sequential analysis of an immutable game snapshot. Never runs during live online play. */
 const DoctorReport = (() => {
+  function annotatedPGN(line, tags, rows, notation) {
+    const original = notation.pgn(line, tags),
+      header = original.slice(0, original.indexOf('\n\n'));
+    const text = line.sans
+      .map((san, i) => {
+        const before = line.positions[i],
+          row = rows[i];
+        let move =
+          (before.turn === 'w'
+            ? (before.fullmove || 1) + '. '
+            : i === 0
+              ? (before.fullmove || 1) + '... '
+              : '') + san;
+        if (row) {
+          const score =
+            row.after.type === 'mate' ? '#' + row.after.score : (row.after.score / 100).toFixed(2);
+          move +=
+            ' { [%eval ' +
+            score +
+            '] ' +
+            ({
+              good: 'Steady move',
+              inaccuracy: 'Inaccuracy',
+              mistake: 'Mistake',
+              blunder: 'Blunder',
+            }[row.grade] || 'Analysis') +
+            '. }';
+        }
+        return move;
+      })
+      .join(' ');
+    return header + '\n\n' + text + ' ' + (tags.Result || '*') + '\n';
+  }
   function value(info) {
     return info.type === 'mate'
       ? Math.sign(info.score) * (10000 - Math.min(Math.abs(info.score), 100) * 10)
@@ -12,7 +45,7 @@ const DoctorReport = (() => {
       grade: loss >= 300 ? 'blunder' : loss >= 150 ? 'mistake' : loss >= 70 ? 'inaccuracy' : 'good',
     };
   }
-  return { value, classify };
+  return { value, classify, annotatedPGN };
 })();
 if (typeof module !== 'undefined') module.exports = DoctorReport;
 let reportGeneration = 0,
@@ -53,7 +86,7 @@ function restoreGameReport(line, key) {
       r.ply === i + 1 &&
       r.san === line.sans[i] &&
       r.side === line.positions[i].turn &&
-      r.number === line.positions[i].fullmove &&
+      r.number === (line.positions[i].fullmove || 1) &&
       typeof r.best === 'string' &&
       r.best.length < 24 &&
       typeof r.book === 'boolean' &&
@@ -104,6 +137,8 @@ function updateGameReport() {
   $('game-report').hidden = !reportData || key !== reportIdentity || !!active();
   if ($('game-report').hidden) return;
   $('report-cancel').hidden = !reportRunning;
+  $('report-export').disabled = reportRunning || !reportData.rows.length;
+  $('report-next-error').disabled = !reportData.rows.some((r) => r.grade !== 'good');
   const renderKey = reportData.rows.length + ':' + reportRunning + ':' + reportIdentity;
   if (renderKey === reportRenderKey) return;
   reportRenderKey = renderKey;
@@ -207,7 +242,7 @@ async function analyzeWholeGame() {
             : '—';
       reportData.rows.push({
         ply: i + 1,
-        number: position.fullmove,
+        number: position.fullmove || 1,
         side: position.turn,
         san: line.sans[i],
         best,
@@ -231,6 +266,31 @@ async function analyzeWholeGame() {
   }
 }
 function initializeGameReport() {
+  $('report-next-error').onclick = () => {
+    if (active() || reportIdentity !== reportKey()) return;
+    const mistakes = reportData.rows.filter((r) => r.grade !== 'good');
+    const ply = reviewIndex ?? currentLine().records.length;
+    const next = mistakes.find((r) => r.ply > ply) || mistakes[0];
+    if (next) setReview(next.ply);
+  };
+  $('report-export').onclick = () => {
+    if (active() || reportRunning || reportIdentity !== reportKey() || !reportData?.rows.length)
+      return;
+    const text = DoctorReport.annotatedPGN(
+      currentLine(),
+      studyTags(),
+      reportData.rows,
+      ChessNotation
+    );
+    const url = URL.createObjectURL(
+      new Blob([text], { type: 'application/x-chess-pgn;charset=utf-8' })
+    );
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'doctor-chess-analysis.pgn';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   $('analyze-game').onclick = analyzeWholeGame;
   $('report-cancel').onclick = () => {
     cancelGameReport();

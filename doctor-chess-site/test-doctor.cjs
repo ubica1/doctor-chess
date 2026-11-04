@@ -166,3 +166,18 @@ async function search(p, roots) {
   console.error(e);
   process.exitCode = 1;
 });
+
+const exportLine = N.fromPGN('1.e4 e5 2.Nf3 *');
+const annotated = Report.annotatedPGN(
+  exportLine,
+  { Result: '*' },
+  [{ after: { type: 'cp', score: 32 }, grade: 'good' }],
+  N
+);
+assert(annotated.includes('[%eval 0.32]'));
+assert.deepEqual(N.fromPGN(annotated).sans, exportLine.sans);
+const blackLine = N.fromPGN(
+  '[SetUp "1"]\n[FEN "4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 b - - 0 12"]\n\n12...e5 *'
+);
+assert(Report.annotatedPGN(blackLine, { Result: '*' }, [], N).includes('12... e5'));
+console.log('PASS: annotated analysis PGN retains original moves and Black-to-move numbering');
