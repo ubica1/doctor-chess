@@ -34,6 +34,11 @@ class ClubGames:
         CREATE INDEX IF NOT EXISTS games_players_black ON games(black,result,created);
         """)
 
+        if "target" not in [
+            row[1] for row in db.execute("PRAGMA table_info(challenges)")
+        ]:
+            db.execute("ALTER TABLE challenges ADD COLUMN target TEXT")
+
     def active_for(self, uid):
         rows = self.db.execute(
             "SELECT id FROM games WHERE (white=? OR black=?) AND result IS NULL ORDER BY created DESC",
@@ -111,18 +116,26 @@ class ClubGames:
             and uid in [challenge["host"], challenge["guest"]],
             "game_id": challenge["game_id"],
             "rematch": bool(challenge["rematch_of"]),
+            "target": (
+                self.profile(challenge["target"])["username"]
+                if challenge.get("target")
+                else None
+            ),
+            "can_join": uid is not None
+            and uid != challenge["host"]
+            and (not challenge.get("target") or uid == challenge["target"]),
         }
 
-    def create(self, uid, control, color):
+    def create(self, uid, control, color, target=None):
         if control not in self.controls or color not in ["w", "b", "random"]:
             raise ClubError("Выберите контроль и цвет.")
         if self.active_for(uid):
             raise ClubError("Сначала завершите текущую сетевую партию.", 409)
         self.cancel_waiting(uid)
-        challenge = self._insert(uid, control, color, None, "casual", 1800)
+        challenge = self._insert(uid, control, color, None, "casual", 1800, target)
         return {"challenge": self.public(challenge, uid)}
 
-    def _insert(self, uid, control, color, rematch_of, kind, lifetime):
+    def _insert(self, uid, control, color, rematch_of, kind, lifetime, target=None):
         token = secrets.token_urlsafe(18)
         self.db.execute(
             "INSERT INTO challenges(id,host,control,color,created,expires,rematch_of,kind) VALUES(?,?,?,?,?,?,?,?)",
@@ -137,6 +150,10 @@ class ClubGames:
                 kind,
             ),
         )
+        if target:
+            self.db.execute(
+                "UPDATE challenges SET target=? WHERE id=?", (target, token)
+            )
         return self.row(token)
 
     def accept(self, token, uid):
@@ -151,6 +168,8 @@ class ClubGames:
             raise ClubError(
                 "Ожидаем другого игрока — своё приглашение принять нельзя.", 409
             )
+        if challenge.get("target") and challenge["target"] != uid:
+            raise ClubError("Это приглашение предназначено другому игроку.", 403)
         if challenge["rematch_of"]:
             original = self.game_row(challenge["rematch_of"])
             if uid not in [original["white"], original["black"]]:
@@ -216,7 +235,7 @@ class ClubGames:
         self.cancel_waiting(uid)
         color = "b" if uid == game["white"] else "w"
         challenge = self._insert(
-            uid, game["control"], color, gid, game.get("kind", "rated"), 300
+            uid, game["control"], color, gid, game.get("kind", "rated"), 300, opponent
         )
         return {"challenge": self.public(challenge, uid)}
 

@@ -6,6 +6,8 @@ from urllib.parse import urlparse, parse_qs, unquote
 from social import ClubGames, ClubError
 from identity import name_key, migrate_names
 from game_clock import settle_clock, insufficient_for_side
+from presence import Presence
+from friendly import FriendlyActions
 
 BASE = Path(__file__).resolve().parent
 PUBLIC_ORIGIN = os.environ.get("DOCTOR_CHESS_PUBLIC_ORIGIN", "").rstrip("/")
@@ -57,6 +59,7 @@ INITIAL = {
 }
 INITIAL["b"] = [None if x == "." else x for x in INITIAL["b"]]
 failures = {}
+presence = Presence()
 
 
 def profile(uid):
@@ -249,10 +252,21 @@ def public_game(g, uid):
         "kind": g.get("kind", "rated"),
         "created": g["created"],
         "rematch": club.pending_rematch(g, uid),
+        "presence": {
+            side: presence.online(g[key])
+            for side, key in [("w", "white"), ("b", "black")]
+        },
+        "takeback": p.get("takeback") if not g["result"] else None,
+        "takebackDeclined": p.get("takebackDenied") == len(p["moves"]),
+        "giftsLeft": max(
+            0,
+            20 - len(p.get("timeGifts", {}).get("w" if uid == g["white"] else "b", [])),
+        ),
     }
 
 
 club = ClubGames(db, CONTROLS, INITIAL, profile, game_row, public_game)
+friendly = FriendlyActions(db, CONTROLS, game_row, public_game)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -319,8 +333,11 @@ class Handler(SimpleHTTPRequestHandler):
         with lock:
             try:
                 uid = self.user()
+                presence.touch(uid)
                 parsed = urlparse(self.path)
                 query = parse_qs(parsed.query)
+                if parsed.path == "/api/lobby":
+                    return self.reply(presence.lobby(db, CONTROLS))
                 if parsed.path.startswith("/api/play/"):
                     if not uid:
                         return self.reply({"error": "Войдите в профиль участника"}, 401)
@@ -473,6 +490,7 @@ class Handler(SimpleHTTPRequestHandler):
     def post(self, x):
         route = self.path
         uid = self.user()
+        presence.touch(uid)
         if route in ["/api/register", "/api/login"]:
             key = self.client_address[0]
             now = time.time()
@@ -530,9 +548,30 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply({"user": profile(uid)}, cookie=self.session(uid))
         if not uid:
             return self.reply({"error": "Сначала войдите в профиль"}, 401)
-        if route == "/api/challenges":
+        if route in (
+            "/api/give-time",
+            "/api/takeback-request",
+            "/api/takeback-accept",
+            "/api/takeback-decline",
+        ):
             return self.reply(
-                club.create(uid, x.get("control"), x.get("color", "random"))
+                friendly.act(uid, route[len("/api/") :], x, self.received_at)
+            )
+        if route == "/api/challenges":
+            target = x.get("opponent")
+            if target is not None:
+                if not isinstance(target, str):
+                    return self.reply({"error": "Укажите имя соперника"}, 400)
+                opponent = db.execute(
+                    "SELECT id FROM users WHERE username_key=?", (name_key(target),)
+                ).fetchone()
+                if not opponent:
+                    return self.reply({"error": "Игрок не найден"}, 404)
+                target = opponent["id"]
+                if target == uid:
+                    return self.reply({"error": "Выберите другого игрока"}, 400)
+            return self.reply(
+                club.create(uid, x.get("control"), x.get("color", "random"), target)
             )
         match = re.fullmatch(r"/api/challenges/([A-Za-z0-9_-]+)/(join|cancel)", route)
         if match:
@@ -669,6 +708,8 @@ class Handler(SimpleHTTPRequestHandler):
                     }
                 )
                 p["offer"] = None
+                p["takeback"] = None
+                p.pop("takebackDenied", None)
                 db.execute(
                     "UPDATE games SET payload=? WHERE id=?", (json.dumps(p), g["id"])
                 )

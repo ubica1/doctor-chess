@@ -213,6 +213,200 @@ class SocialGames(unittest.TestCase):
         self.assertEqual(status, 200, out)
         return out["game"]
 
+    def test_targeted_invitation_rejects_other_players(self):
+        status, out = call(
+            self.host,
+            "challenges",
+            {"control": "3+2", "color": "w", "opponent": self.names[1].lower()},
+        )
+        self.assertEqual(status, 200, out)
+        token = out["challenge"]["id"]
+        self.assertEqual(out["challenge"]["target"], self.names[1])
+        self.assertFalse(
+            call(self.other, "challenges/" + token)[1]["challenge"]["can_join"]
+        )
+        self.assertEqual(call(self.other, "challenges/" + token + "/join", {})[0], 403)
+        self.assertEqual(call(self.anon, "challenges/" + token + "/join", {})[0], 401)
+        self.assertEqual(call(self.guest, "challenges/" + token + "/join", {})[0], 200)
+        self.assertEqual(
+            call(
+                self.other, "challenges", {"control": "3+2", "opponent": self.names[2]}
+            )[0],
+            400,
+        )
+        self.assertEqual(
+            call(self.other, "challenges", {"control": "3+2", "opponent": {}})[0], 400
+        )
+
+    def test_takeback_consent_clocks_and_stale_actions(self):
+        g = self.casual()
+        gid = g["id"]
+        call(self.host, "move", {"game": gid, "from": 52, "to": 36})
+        status, out = call(self.host, "takeback-request", {"game": gid, "ply": 1})
+        self.assertEqual(status, 200, out)
+        offer = out["game"]["takeback"]["id"]
+        self.assertEqual(
+            call(self.host, "takeback-request", {"game": gid, "ply": 1})[1]["game"][
+                "takeback"
+            ]["id"],
+            offer,
+        )
+        self.assertEqual(
+            call(self.host, "takeback-accept", {"game": gid, "offer": offer})[0], 403
+        )
+        self.assertEqual(
+            call(self.other, "takeback-accept", {"game": gid, "offer": offer})[0], 404
+        )
+        call(self.guest, "draw", {"game": gid})
+        self.assertEqual(
+            call(self.host, "draw-decline", {"game": gid})[1]["game"]["takeback"]["id"],
+            offer,
+        )
+        with server.lock:
+            row = server.game_row(gid)
+            p = row["payload"]
+            p["clocks"] = {"w": 100, "b": 90}
+            p["tick"] = time.time() - 3
+            server.db.execute(
+                "UPDATE games SET payload=? WHERE id=?", (json.dumps(p), gid)
+            )
+        status, out = call(self.guest, "takeback-accept", {"game": gid, "offer": offer})
+        self.assertEqual(status, 200, out)
+        restored = out["game"]
+        self.assertEqual(restored["moves"], [])
+        self.assertEqual(restored["last"], [])
+        self.assertEqual(restored["state"], server.INITIAL)
+        self.assertLessEqual(restored["clocks"]["w"], 98)
+        self.assertLessEqual(restored["clocks"]["b"], 87)
+        self.assertIsNone(restored["takeback"])
+        self.assertEqual(
+            call(self.guest, "takeback-accept", {"game": gid, "offer": offer})[0], 409
+        )
+        self.assertEqual(
+            call(self.host, "move", {"game": gid, "from": 51, "to": 35})[0], 200
+        )
+        _, out = call(self.host, "takeback-request", {"game": gid, "ply": 1})
+        offer = out["game"]["takeback"]["id"]
+        call(self.guest, "move", {"game": gid, "from": 12, "to": 28})
+        self.assertIsNone(call(self.host, "play/" + gid)[1]["game"]["takeback"])
+        self.assertEqual(
+            call(self.guest, "takeback-accept", {"game": gid, "offer": offer})[0], 409
+        )
+        _, out = call(self.guest, "takeback-request", {"game": gid, "ply": 2})
+        offer = out["game"]["takeback"]["id"]
+        self.assertEqual(
+            call(self.host, "takeback-decline", {"game": gid, "offer": offer})[0], 200
+        )
+        self.assertEqual(
+            call(self.guest, "takeback-request", {"game": gid, "ply": 2})[0], 409
+        )
+        self.assertEqual(
+            call(self.host, "me")[1]["user"]["ratings"]["blitz"]["played"], 0
+        )
+
+    def test_simultaneous_takeback_acceptance_undoes_exactly_once(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        g = self.casual()
+        call(self.host, "move", {"game": g["id"], "from": 52, "to": 36})
+        offer = call(self.host, "takeback-request", {"game": g["id"], "ply": 1})[1][
+            "game"
+        ]["takeback"]["id"]
+        barrier = threading.Barrier(2)
+
+        def accept():
+            barrier.wait()
+            return call(
+                self.guest, "takeback-accept", {"game": g["id"], "offer": offer}
+            )[0]
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            answers = list(pool.map(lambda _: accept(), range(2)))
+        self.assertEqual(sorted(answers), [200, 409])
+        self.assertEqual(call(self.host, "play/" + g["id"])[1]["game"]["moves"], [])
+
+    def test_time_gifts_are_idempotent_limited_and_cannot_revive_game(self):
+        g = self.casual()
+        gid = g["id"]
+        payload = {"game": gid, "token": "retry-token-0001"}
+        status, out = call(self.host, "give-time", payload)
+        self.assertEqual(status, 200, out)
+        self.assertEqual(out["game"]["clocks"]["b"], 195)
+        self.assertEqual(out["game"]["giftsLeft"], 19)
+        out = call(self.host, "give-time", payload)[1]
+        self.assertEqual(out["game"]["clocks"]["b"], 195)
+        self.assertEqual(out["game"]["giftsLeft"], 19)
+        self.assertEqual(call(self.other, "give-time", payload)[0], 404)
+        self.assertEqual(
+            call(self.host, "give-time", {"game": gid, "token": []})[0], 400
+        )
+        for n in range(19):
+            self.assertEqual(
+                call(self.host, "give-time", {"game": gid, "token": f"gift-{n:08d}"})[
+                    0
+                ],
+                200,
+            )
+        self.assertEqual(
+            call(self.host, "give-time", {"game": gid, "token": "limit-token-0001"})[0],
+            409,
+        )
+        self.assertEqual(call(self.host, "give-time", payload)[0], 200)
+        with server.lock:
+            row = server.game_row(gid)
+            p = row["payload"]
+            p["tick"] = time.time() - 1000
+            server.db.execute(
+                "UPDATE games SET payload=? WHERE id=?", (json.dumps(p), gid)
+            )
+        self.assertEqual(
+            call(self.guest, "give-time", {"game": gid, "token": "no-revival-token"})[
+                0
+            ],
+            409,
+        )
+        self.assertEqual(call(self.host, "play/" + gid)[1]["game"]["result"], "b")
+        call(self.host, "queue", {"control": "3+2"})
+        rated = call(self.guest, "queue", {"control": "3+2"})[1]["game"]
+        self.assertEqual(
+            call(
+                self.host,
+                "give-time",
+                {"game": rated["id"], "token": "rated-token-0001"},
+            )[0],
+            403,
+        )
+        self.assertEqual(
+            call(self.guest, "takeback-request", {"game": rated["id"], "ply": 0})[0],
+            403,
+        )
+
+    def test_presence_and_live_lobby_expire_without_names(self):
+        call(self.host, "queue", {"control": "30+0"})
+        status, out = call(self.anon, "lobby")
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(out["waiting"]["30+0"], 1)
+        self.assertNotIn(self.names[0], json.dumps(out))
+        g = call(self.guest, "queue", {"control": "30+0"})[1]["game"]
+        self.assertTrue(all(g["presence"].values()))
+        with server.lock:
+            host_id = server.db.execute(
+                "SELECT id FROM users WHERE username=?", (self.names[0],)
+            ).fetchone()[0]
+            server.presence.seen[host_id] = time.time() - 25
+        g = call(self.guest, "state")[1]["game"]
+        host_side = "b" if g["you"] == "w" else "w"
+        self.assertFalse(g["presence"][host_side])
+        call(self.host, "state")
+        self.assertTrue(call(self.guest, "state")[1]["game"]["presence"][host_side])
+        with server.lock:
+            service = server.Presence()
+            service.touch("a", 100)
+            self.assertTrue(service.online("a", 119))
+            self.assertFalse(service.online("a", 121))
+            service.touch(None, 140)
+            self.assertEqual(service.seen, {})
+
     def test_private_game_room_restores_only_participants(self):
         g = self.casual()
         endpoint = "play/" + g["id"]
