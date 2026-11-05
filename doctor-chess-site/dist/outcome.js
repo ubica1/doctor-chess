@@ -80,8 +80,7 @@ const ChessOutcome = (() => {
 })();
 if (typeof module !== 'undefined') module.exports = ChessOutcome;
 
-let outcomeSeen = '',
-  currentOutcome = null;
+let currentOutcome = null;
 function updateOutcome() {
   const outcome = ChessOutcome.describe(s, history, { game, mode, botSide, archiveInfo });
   currentOutcome = outcome;
@@ -89,7 +88,6 @@ function updateOutcome() {
   $('result-card').hidden = !showCard;
   if (!showCard) {
     if ($('result-modal').open) $('result-modal').close();
-    if (!outcome) outcomeSeen = '';
     return;
   }
   for (const prefix of ['result', 'finish']) {
@@ -109,19 +107,7 @@ function updateOutcome() {
   $('finish-again').textContent = $('result-again').textContent;
   $('result-again').hidden = mode === 'analysis';
   $('finish-again').hidden = mode === 'analysis';
-  const key = game ? game.id + ':' + game.result : mode + ':' + history.length + ':' + s.b.join('');
-  // The server confirms online results; an optimistic last move cannot announce a win.
-  if (
-    mode !== 'analysis' &&
-    !$('game-page').hidden &&
-    reviewIndex === null &&
-    !busy &&
-    key !== outcomeSeen &&
-    !$('modal').open
-  ) {
-    outcomeSeen = key;
-    $('result-modal').showModal();
-  }
+  // Keep the last move visible. The result dialog opens only on explicit request.
 }
 function initializeOutcome() {
   const close = () => $('result-modal').close();

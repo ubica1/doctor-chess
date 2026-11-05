@@ -123,29 +123,6 @@
           </section>
         </aside>
         <section class="table" id="play">
-          <section
-            class="result-card"
-            id="result-card"
-            hidden
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            <div id="result-surface" class="result-surface">
-              <span id="result-symbol" class="result-symbol"></span>
-              <div>
-                <span class="eyebrow">ПАРТИЯ ЗАВЕРШЕНА</span>
-                <h2 id="result-title"></h2>
-                <p id="result-reason"></p>
-                <small id="result-rating"></small>
-              </div>
-              <strong id="result-score" class="result-score"></strong>
-            </div>
-            <div class="result-actions">
-              <button id="result-review">Разобрать партию</button
-              ><button id="result-again">Ещё одну →</button
-              ><button id="result-detail" aria-label="Подробнее об итоге партии">Итог ↗</button>
-            </div>
-          </section>
           <div class="player">
             <span class="player-icon opponent">♚</span>
             <div>
@@ -204,6 +181,29 @@
             ><button id="review-next" aria-label="Следующий ход">›</button
             ><button id="review-live" aria-label="Текущая позиция">›|</button>
           </div>
+          <section
+            class="result-card"
+            id="result-card"
+            hidden
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <div id="result-surface" class="result-surface">
+              <span id="result-symbol" class="result-symbol"></span>
+              <div>
+                <span class="eyebrow">ПАРТИЯ ЗАВЕРШЕНА</span>
+                <h2 id="result-title"></h2>
+                <p id="result-reason"></p>
+                <small id="result-rating"></small>
+              </div>
+              <strong id="result-score" class="result-score"></strong>
+            </div>
+            <div class="result-actions">
+              <button id="result-review">Разобрать партию</button
+              ><button id="result-again">Ещё одну →</button
+              ><button id="result-detail" aria-label="Подробнее об итоге партии">Итог ↗</button>
+            </div>
+          </section>
         </section>
         <aside class="right-column">
           <details class="play-card" id="game-settings">
@@ -362,7 +362,7 @@
     <script src="/board-view.js?v=0.6.1-merge1"></script>
     <script src="/doctor-book.js?v=0.6.1-merge1"></script>
     <script src="/stockfish-client.js?v=0.6.1-merge1"></script>
-    <script src="/outcome.js?v=0.6.1-merge1"></script>
+    <script src="/outcome.js?v=0.6.4"></script>
     <script src="/academy.js?v=0.6.3"></script>
     <script src="/game-report.js?v=0.6.1-merge1"></script>
     <script src="/studio.js?v=0.6.1-merge1"></script>

@@ -323,7 +323,13 @@ async function appTests() {
     "stopStudy();game=null;mode='computer';botSide='w';resetBoard();$('modal').close();s=ChessNotation.fromPGN('1.f3 e5 2.g4 Qh4# *').positions.at(-1);render()"
   );
   assert.equal(run("$('finish-title').textContent"), 'Вы проиграли');
-  assert(run("$('result-modal').open"));
+  assert(
+    !run("$('result-modal').open"),
+    'A mate must leave the final move visible without a modal'
+  );
+  assert.equal(run("$('result-card').hidden"), false);
+  run("$('result-detail').onclick()");
+  assert(run("$('result-modal').open"), 'Result details are still available on request');
   run("$('result-modal').close();render();render()");
   assert.equal(
     run("$('result-modal').open"),
@@ -472,7 +478,7 @@ async function appTests() {
   pendingFetch = null;
   console.log('PASS: library pagination, retry, no duplicates and damaged local records');
   console.log(
-    'PASS: result popup once, server confirmation, cancelled book move and stale hint isolation'
+    'PASS: nonblocking result, manual details, server confirmation, cancelled book move and stale hint isolation'
   );
   console.log(
     'PASS: bot color switches after opening, confirmation preserves current game, new training honors color'
