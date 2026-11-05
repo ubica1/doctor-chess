@@ -47,12 +47,13 @@ function updateSocialPanel() {
       ' · ' +
       game.control;
 }
-function createFriendGame() {
+function createFriendGame(opponent = null) {
+  if (typeof opponent !== 'string') opponent = null;
   if (!user) return auth(true);
   if (remoteGame && !remoteGame.result) return toast('Сначала завершите текущую сетевую партию.');
   show(
-    'Позовём друга за доску.',
-    `<p>Создайте ссылку на дружескую партию. Рейтинг останется прежним.</p><form id="friend-form"><label for="friend-control">Контроль времени</label><select id="friend-control">${['1+0', '3+0', '3+2', '5+0', '10+0', '15+10', '30+0'].map((c) => `<option value="${c}" ${c === control ? 'selected' : ''}>${c}</option>`).join('')}</select><label for="friend-color">Ваш цвет</label><select id="friend-color"><option value="random">Случайный</option><option value="w">Белые</option><option value="b">Чёрные</option></select><p class="muted">Ссылка действует 30 минут. Отправьте её другу — он сможет присоединиться со своего устройства.</p><div class="form-error" id="friend-error" role="alert"></div><button id="create-friend" class="primary">Создать приглашение →</button></form>`
+    opponent ? 'Вызов: ' + opponent : 'Позовём друга за доску.',
+    `<p>${opponent ? 'Приглашение сможет принять только ' + escapeHtml(opponent) + '.' : 'Создайте ссылку на дружескую партию.'} Рейтинг останется прежним.</p><form id="friend-form"><label for="friend-control">Контроль времени</label><select id="friend-control">${['1+0', '3+0', '3+2', '5+0', '10+0', '15+10', '30+0'].map((c) => `<option value="${c}" ${c === control ? 'selected' : ''}>${c}</option>`).join('')}</select><label for="friend-color">Ваш цвет</label><select id="friend-color"><option value="random">Случайный</option><option value="w">Белые</option><option value="b">Чёрные</option></select><p class="muted">Ссылка действует 30 минут. Отправьте её другу — он сможет присоединиться со своего устройства.</p><div class="form-error" id="friend-error" role="alert"></div><button id="create-friend" class="primary">Создать приглашение →</button></form>`
   );
   $('friend-form').onsubmit = async (e) => {
     e.preventDefault();
@@ -61,6 +62,7 @@ function createFriendGame() {
       const out = await api('challenges', {
         control: $('friend-control').value,
         color: $('friend-color').value,
+        ...(opponent ? { opponent } : {}),
       });
       navigate('/invite/' + out.challenge.id);
     } catch (e) {
@@ -86,23 +88,24 @@ async function loadInvitation(token) {
       if (version !== invitationVersion) return;
       const c = out.challenge;
       watching = c.status === 'pending';
-      if (!watching && invitationTimer) {
-        clearInterval(invitationTimer);
-        invitationTimer = null;
-      }
       if (c.status === 'accepted' && c.participant) {
         const state = await api('state');
         if (version !== invitationVersion) return;
         if (state.game?.id === c.game_id) {
           if (await enterMatchedGame(state.game)) return;
+          watching = true;
         }
+      }
+      if (!watching && invitationTimer) {
+        clearInterval(invitationTimer);
+        invitationTimer = null;
       }
       const key = JSON.stringify(c) + ':' + !!user;
       if (key === last) return;
       last = key;
       const link = location.origin + '/invite/' + c.id;
       $('community-page').innerHTML =
-        `<div class="breadcrumbs"><a href="/">Doctor Chess</a><span>/</span><span>Приглашение</span></div><section class="invitation-card"><span class="invitation-stamp">友</span><div class="eyebrow">ДРУЖЕСКАЯ ПАРТИЯ</div><h1>${escapeHtml(c.host.username)} приглашает сыграть</h1><div class="invite-details"><span>${c.control}</span><span>${c.kind === 'rated' ? 'Рейтинговая' : 'Без рейтинга'}</span><span>${c.color === 'random' ? 'Случайные цвета' : c.color === 'w' ? 'Создатель играет белыми' : 'Создатель играет чёрными'}</span></div>${c.status === 'pending' ? (c.own ? `<p>Скопируйте ссылку и откройте её во втором браузере под профилем друга.</p><label for="invite-link">Ссылка на партию</label><input readonly id="invite-link" value="${escapeHtml(link)}"><div class="invite-buttons"><button id="copy-invite" class="primary">Скопировать ссылку</button><button id="cancel-invite" class="outline">Отменить приглашение</button></div><p class="muted">Ждём соперника. Приглашение действует до ${new Date(c.expires * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}.</p>` : `<p>Займите свободное место за доской. Партия начнётся, когда вы присоединитесь.</p><button id="join-invite" class="primary">${user ? 'Присоединиться к партии' : 'Войти и присоединиться'} →</button>`) : c.status === 'accepted' ? `<p>По этому приглашению уже началась партия.</p><a class="outline" href="/review/${c.game_id}">Открыть разбор после завершения →</a>` : `<p>${c.status === 'expired' ? 'Срок приглашения истёк.' : 'Приглашение отменено.'}</p><a class="outline" href="/">Вернуться в игровую комнату →</a>`}<div class="form-error" id="invite-error" role="alert"></div></section>`;
+        `<div class="breadcrumbs"><a href="/">Doctor Chess</a><span>/</span><span>Приглашение</span></div><section class="invitation-card"><span class="invitation-stamp">友</span><div class="eyebrow">ДРУЖЕСКАЯ ПАРТИЯ</div><h1>${escapeHtml(c.host.username)} приглашает сыграть</h1><div class="invite-details"><span>${c.control}</span><span>${c.kind === 'rated' ? 'Рейтинговая' : 'Без рейтинга'}</span><span>${c.color === 'random' ? 'Случайные цвета' : c.color === 'w' ? 'Создатель играет белыми' : 'Создатель играет чёрными'}</span></div>${c.status === 'pending' ? (c.own ? `<p>${c.target ? 'Приглашение для ' + escapeHtml(c.target) + '. ' : ''}Отправьте ссылку сопернику — он присоединится со своего устройства.</p><label for="invite-link">Ссылка на партию</label><input readonly id="invite-link" value="${escapeHtml(link)}"><div class="invite-buttons"><button id="copy-invite" class="primary">Скопировать ссылку</button><button id="cancel-invite" class="outline">Отменить приглашение</button></div><p class="muted">Ждём соперника. Приглашение действует до ${new Date(c.expires * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}.</p>` : `<p>${c.target ? 'Приглашение для ' + escapeHtml(c.target) + '. ' : ''}Партия начнётся после присоединения соперника.</p><button id="join-invite" class="primary" ${user && !c.can_join ? 'disabled' : ''}>${user && !c.can_join ? 'Приглашение другому игроку' : user ? 'Присоединиться к партии' : 'Войти и присоединиться'} →</button>`) : c.status === 'accepted' ? `<p>По этому приглашению уже началась партия.</p><a class="outline" href="/review/${c.game_id}">Открыть разбор после завершения →</a>` : `<p>${c.status === 'expired' ? 'Срок приглашения истёк.' : 'Приглашение отменено.'}</p><a class="outline" href="/">Вернуться в игровую комнату →</a>`}<div class="form-error" id="invite-error" role="alert"></div></section>`;
       if ($('copy-invite'))
         $('copy-invite').onclick = async () => {
           try {
@@ -181,12 +184,5 @@ function initializeSocial() {
   $('friend-game').onclick = createFriendGame;
   $('rematch').onclick = requestRematch;
   $('cancel-rematch').onclick = cancelRematch;
-  $('decline-draw').onclick = async () => {
-    if (!active()) return;
-    try {
-      acceptGame((await api('draw-decline', { game: game.id })).game);
-    } catch (e) {
-      toast(e.message);
-    }
-  };
+  $('decline-draw').onclick = () => onlineAction('draw-decline');
 }

@@ -69,7 +69,8 @@ function canInteract() {
     !busy &&
     !queued &&
     !positionFinished &&
-    (mode !== 'online' || (game && !game.result && s.turn === game.you))
+    (mode !== 'online' ||
+      (connectionState === 'online' && game && !game.result && s.turn === game.you))
   );
 }
 function saveDesk() {
@@ -129,27 +130,37 @@ function toast(t) {
   toastTimer = setTimeout(() => ($('toast').hidden = true), 4000);
 }
 async function api(path, data) {
-  let r;
+  const controller = typeof AbortController === 'undefined' ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), 10000) : null;
+  let r, x;
   try {
     r = await fetch('/api/' + path, {
       method: data === undefined ? 'GET' : 'POST',
       headers: data === undefined ? {} : { 'Content-Type': 'application/json' },
       body: data === undefined ? undefined : JSON.stringify(data),
+      signal: controller?.signal,
+      cache: 'no-store',
     });
-  } catch {
+    try {
+      x = await r.json();
+    } catch {
+      connectionFailed();
+      throw Error('Нет связи с игровым сервером');
+    }
+    connectionReceived();
+  } catch (error) {
+    connectionFailed();
+    if (error.message === 'Нет связи с игровым сервером') throw error;
     throw Error(
       'Не удалось подключиться к Doctor Chess. Проверьте соединение и попробуйте ещё раз.'
     );
-  }
-  let x;
-  try {
-    x = await r.json();
-  } catch {
-    throw Error('Нет связи с игровым сервером');
+  } finally {
+    if (timer !== null) clearTimeout(timer);
   }
   if (!r.ok) throw Error(x.error || 'Не удалось выполнить действие');
   return x;
 }
+
 function show(title, html) {
   $('modal-title').textContent = title;
   $('content').innerHTML = html;
@@ -400,6 +411,7 @@ function updatePanelBase() {
 function updatePanel() {
   updatePanelBase();
   updateStudioPanel();
+  updateFriendlyActions();
 }
 function updatePlayers() {
   const topSide = flipped ? 'w' : 'b',
@@ -561,6 +573,7 @@ async function makeMove(i, j, p) {
 }
 function acceptGame(g) {
   if (!g) return;
+  connectionReceived();
   remoteGame = g;
   if (mode !== 'online') {
     updateResume();
@@ -574,6 +587,11 @@ function acceptGame(g) {
       previous.result !== g.result ||
       JSON.stringify(s.b) !== JSON.stringify(g.state.b);
   const opponentMove = previous && previous.id === g.id && g.moves.length > moves.length;
+  if (previous?.id === g.id && g.moves.length < moves.length) {
+    clearPremove();
+    reviewIndex = null;
+    cancelGameReport();
+  }
   game = g;
   queued = false;
   if (!g.result) control = g.control;
@@ -635,7 +653,7 @@ async function poll() {
       render();
     } else updatePanel();
   } catch (e) {
-    if (mode === 'online') $('status').textContent = 'Связь прервалась. Пробуем подключиться…';
+    connectionFailed();
   } finally {
     polling = false;
   }
@@ -810,29 +828,18 @@ $('flip').onclick = () => {
   render();
 };
 $('resign').onclick = () => {
-  if (!active()) return;
+  if (!active() || busy) return;
+  const id = game.id;
   show(
     'Завершить эту партию?',
-    '<p>После сдачи победа будет присуждена сопернику, а рейтинг пересчитан.</p><button id="confirm-resign" class="primary">Да, сдаться</button>'
+    `<p>После сдачи победа будет присуждена сопернику.${game.kind === 'casual' ? ' Дружеская партия не меняет рейтинг.' : ' Результат будет учтён в рейтинге.'}</p><button id="confirm-resign" class="primary">Да, сдаться</button>`
   );
-  $('confirm-resign').onclick = async () => {
-    try {
-      acceptGame((await api('resign', { game: game.id })).game);
-      $('modal').close();
-      await poll();
-    } catch (e) {
-      toast(e.message);
-    }
+  $('confirm-resign').onclick = () => {
+    $('modal').close();
+    if (game?.id === id) onlineAction('resign');
   };
 };
-$('draw').onclick = async () => {
-  try {
-    acceptGame((await api('draw', { game: game.id })).game);
-    await poll();
-  } catch (e) {
-    toast(e.message);
-  }
-};
+$('draw').onclick = () => onlineAction('draw');
 $('close').onclick = () => $('modal').close();
 function closeMenu() {
   $('main-nav').classList.remove('menu-open');
@@ -863,6 +870,7 @@ $('privacy-info').onclick = () =>
     '<p>Имя, эмблема, описание, рейтинги и завершённые сетевые партии видны другим игрокам. Войти в активную игровую комнату могут её участники.</p><p>Сетевые партии и рейтинги сохраняются в профиле. Домашние записи, настройки, разборы и прогресс обучения хранятся в браузере на этом устройстве. Очистка данных браузера удаляет эти записи; важные партии можно скачать в PGN.</p><p>Соединение с Doctor Chess защищено HTTPS. Пароли и сессии не публикуются вместе с исходным кодом. Расчёт Stockfish выполняется на вашем устройстве.</p><p><a href="https://github.com/ubica1/doctor-chess/blob/main/SECURITY.md" target="_blank" rel="noopener">Подробнее о данных и безопасности ↗</a></p>'
   );
 initializeStudio();
+initializeLive();
 restoreDesk();
 render();
 api('me')

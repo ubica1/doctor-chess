@@ -134,6 +134,7 @@ vm.runInContext(fs.readFileSync('dist/club.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/premoves.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/game-room.js', 'utf8'), context);
 context.communityNav = () => {};
+vm.runInContext(fs.readFileSync('dist/live.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/app.js', 'utf8'), context);
 const run = (src) => vm.runInContext(src, context);
 async function appTests() {
@@ -152,6 +153,25 @@ async function appTests() {
   pendingFetch = async () => ({ ok: false, json: async () => ({ error: 'Неверный пароль' }) });
   await assert.rejects(run("api('login', {})"), /Неверный пароль/);
   pendingFetch = null;
+  const originalFetch = context.fetch,
+    originalTimeout = context.setTimeout;
+  let requestTimeout;
+  context.AbortController = AbortController;
+  context.setTimeout = (fn, ms) => {
+    if (ms === 10000) requestTimeout = fn;
+    return 1;
+  };
+  context.fetch = (_url, options) =>
+    new Promise((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(new Error('aborted')));
+    });
+  const hung = run("api('state')");
+  requestTimeout();
+  await assert.rejects(hung, /Не удалось подключиться к Doctor Chess/);
+  assert.equal(run('connectionState'), 'offline');
+  context.fetch = originalFetch;
+  context.setTimeout = originalTimeout;
+  delete context.AbortController;
   console.log('PASS: connection failures use player-facing messages and preserve account errors');
   run("user={id:'a',username:'Alpha',avatar:'crane',ratings:{blitz:{rating:1200}}};mode='online'");
   networkGame = run(
