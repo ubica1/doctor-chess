@@ -566,6 +566,35 @@ class ReviewRegressions(unittest.TestCase):
                                 before,
                             )
 
+    def test_hosted_origin_and_secure_cookie(self):
+        from unittest.mock import patch
+
+        with patch.object(
+            server, "PUBLIC_ORIGIN", "https://chess.example.com"
+        ), patch.object(server, "COOKIE_SECURE", "; Secure"):
+            body = json.dumps(
+                {
+                    "username": "Proxy" + server.secrets.token_hex(4),
+                    "password": "test-password",
+                }
+            ).encode()
+            request = urllib.request.Request(
+                BASE + "/api/register",
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Origin": "https://chess.example.com",
+                },
+            )
+            with urllib.request.urlopen(request) as response:
+                self.assertEqual(response.status, 200)
+                self.assertIn("; Secure", response.headers["Set-Cookie"])
+            self.assertEqual(
+                call(self.white, "profile", {"bio": "wrong origin"})[0], 403
+            )
+            with urllib.request.urlopen(BASE + "/healthz") as response:
+                self.assertEqual(json.load(response), {"ok": True})
+
     def test_unicode_migration_backup_conflict_and_retry(self):
         import sqlite3
         from contextlib import closing

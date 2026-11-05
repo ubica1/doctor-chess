@@ -8,6 +8,22 @@ from identity import name_key, migrate_names
 from game_clock import settle_clock, insufficient_for_side
 
 BASE = Path(__file__).resolve().parent
+PUBLIC_ORIGIN = os.environ.get("DOCTOR_CHESS_PUBLIC_ORIGIN", "").rstrip("/")
+if PUBLIC_ORIGIN:
+    public_url = urlparse(PUBLIC_ORIGIN)
+    if (
+        public_url.scheme != "https"
+        or not public_url.netloc
+        or public_url.path
+        or public_url.query
+        or public_url.fragment
+        or public_url.username
+        or public_url.password
+    ):
+        raise ValueError(
+            "DOCTOR_CHESS_PUBLIC_ORIGIN must be an HTTPS origin without a path"
+        )
+COOKIE_SECURE = "; Secure" if PUBLIC_ORIGIN else ""
 DB = Path(os.environ.get("DOCTOR_CHESS_DB", str(BASE / "data" / "chess.sqlite3")))
 DB.parent.mkdir(parents=True, exist_ok=True)
 db = sqlite3.connect(DB, check_same_thread=False, isolation_level=None)
@@ -241,6 +257,7 @@ club = ClubGames(db, CONTROLS, INITIAL, profile, game_row, public_game)
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
+        self.timeout = 15
         super().__init__(*args, directory=str(BASE / "dist"), **kwargs)
 
     def log_message(self, *args):
@@ -277,9 +294,13 @@ class Handler(SimpleHTTPRequestHandler):
             "INSERT INTO sessions VALUES(?,?,?)",
             (hashlib.sha256(token.encode()).hexdigest(), uid, time.time() + 86400 * 30),
         )
-        return f"dc_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000"
+        return f"dc_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000{COOKIE_SECURE}"
 
     def do_GET(self):
+        if self.path == "/healthz":
+            with lock:
+                db.execute("SELECT 1").fetchone()
+            return self.reply({"ok": True})
         if (
             self.path.startswith("/player/")
             or self.path.startswith("/review/")
@@ -404,7 +425,10 @@ class Handler(SimpleHTTPRequestHandler):
         # Only same-origin browser requests may mutate authenticated state.
         origin = self.headers.get("Origin")
         host = self.headers.get("Host", "")
-        if origin and origin not in ("http://" + host, "https://" + host):
+        allowed_origins = (
+            (PUBLIC_ORIGIN,) if PUBLIC_ORIGIN else ("http://" + host, "https://" + host)
+        )
+        if origin and origin not in allowed_origins:
             return self.reply({"error": "Недопустимый источник запроса"}, 403)
         try:
             size = int(self.headers.get("Content-Length", "0"))
@@ -513,7 +537,8 @@ class Handler(SimpleHTTPRequestHandler):
             db.execute("DELETE FROM queue WHERE user_id=?", (uid,))
             return self.reply(
                 {"ok": True},
-                cookie="dc_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+                cookie="dc_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
+                + COOKIE_SECURE,
             )
         if route == "/api/profile":
             bio = x.get("bio", profile(uid)["bio"])
@@ -638,5 +663,6 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "4173"))
-    print(f"Doctor Chess: http://localhost:{port}", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    host = os.environ.get("DOCTOR_CHESS_HOST", "127.0.0.1")
+    print(f"Doctor Chess: {PUBLIC_ORIGIN or f'http://{host}:{port}'}", flush=True)
+    ThreadingHTTPServer((host, port), Handler).serve_forever()
