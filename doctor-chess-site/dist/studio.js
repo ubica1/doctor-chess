@@ -136,18 +136,19 @@ function updateStudioPanel() {
   $('rhythm-label').hidden = computer || analysis;
   document.querySelector('.classical').hidden = computer || analysis;
   if (computer) {
-    $('new').textContent = botProblem
-      ? 'Продолжить ход доктора →'
-      : moves.length
-        ? 'Новая тренировка ↗'
-        : 'Начать тренировку ↗';
+    $('new').textContent = botProblem ? 'Продолжить ход доктора →' : 'Новая партия';
     $('new').disabled = busy;
     $('queue-note').textContent = botThinking
       ? 'Доктор обдумывает ответ…'
       : 'Можно взять ход назад и попросить подсказку.';
     $('status').textContent = botThinking
       ? 'Доктор думает…'
-      : end(s, history) || (s.turn === botSide ? 'Ваш ход. Без спешки.' : 'Ход доктора');
+      : end(s, history) ||
+        (s.turn === botSide
+          ? moves.length
+            ? 'Ваш ход. Без спешки.'
+            : 'Вы играете ' + (botSide === 'w' ? 'белыми' : 'чёрными') + '. Сделайте ход.'
+          : 'Ход доктора');
     $('undo').disabled =
       busy || !history.length || (history.length === 1 && history[0].turn !== botSide);
   }
@@ -425,11 +426,39 @@ function exportPGN() {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+let damagedLocalGames = 0;
 function savedGames() {
+  damagedLocalGames = 0;
   try {
     const x = JSON.parse(localStorage.getItem('dc-library') || '[]');
-    return Array.isArray(x) ? x : [];
+    if (!Array.isArray(x)) throw Error('library');
+    return x.filter((g) => {
+      const valid =
+        g &&
+        typeof g.id === 'string' &&
+        Number.isFinite(g.created) &&
+        g.tags &&
+        ['White', 'Black', 'Result'].every((k) => typeof g.tags[k] === 'string') &&
+        Array.isArray(g.positions) &&
+        g.positions.length > 0 &&
+        g.positions.every(
+          (p) =>
+            p &&
+            Array.isArray(p.b) &&
+            p.b.length === 64 &&
+            p.b.every((piece) => piece === null || /^[kqrbnpKQRBNP]$/.test(piece)) &&
+            p.b.filter((piece) => piece === 'K').length === 1 &&
+            p.b.filter((piece) => piece === 'k').length === 1 &&
+            ['w', 'b'].includes(p.turn) &&
+            typeof p.rights === 'string' &&
+            Number.isInteger(p.ep) &&
+            Number.isInteger(p.half)
+        );
+      if (!valid) damagedLocalGames++;
+      return valid;
+    });
   } catch {
+    damagedLocalGames = 1;
     return [];
   }
 }
@@ -461,20 +490,88 @@ function archiveCurrent(quiet = false) {
     if (!quiet) toast('Не хватает места. Скачайте PGN партии.');
   }
 }
+function exportLocalGame(record) {
+  try {
+    const line = ChessNotation.describe(record.positions.slice(0, -1), record.positions.at(-1));
+    const url = URL.createObjectURL(
+      new Blob([ChessNotation.pgn(line, record.tags)], {
+        type: 'application/x-chess-pgn;charset=utf-8',
+      })
+    );
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'doctor-chess-local.pgn';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch {
+    toast('Не удалось экспортировать повреждённую запись');
+  }
+}
 async function openLibrary() {
-  let online = [];
-  if (user)
-    try {
-      online = (await api('players/' + encodeURIComponent(user.username))).player.games;
-    } catch {}
   const local = savedGames();
   show(
     'Партии, к которым возвращаемся.',
-    `<p class="muted">Домашние записи хранятся в этом браузере. Сетевые — в вашем профиле.</p><h3 class="library-label">На этом устройстве</h3><div class="library-list">${local.length ? local.map((g) => `<button data-open-local="${g.id}"><span>${escapeHtml(g.tags.White)} — ${escapeHtml(g.tags.Black)}<small>${new Date(g.created).toLocaleDateString('ru-RU')} · ${g.positions.length - 1} ${plural(g.positions.length - 1, ['полуход', 'полухода', 'полуходов'])}</small></span><b>${escapeHtml(g.tags.Result)} ↗</b></button>`).join('') : '<p>Сохраните тренировку или домашнюю партию кнопкой под записью ходов.</p>'}</div><h3 class="library-label">Сетевые партии</h3><div class="library-list">${online.length ? online.map((g) => `<a href="/review/${g.id}"><span>С ${escapeHtml(g.opponent.username)}<small>${g.control} · ${dateLabel(g.created)}</small></span><b>${{ win: 'Победа', draw: 'Ничья', loss: 'Поражение' }[g.result]} ↗</b></a>`).join('') : '<p>Завершённые сетевые партии появятся здесь после игры.</p>'}</div>`
+    `<p class="muted">Сетевые партии хранятся в профиле. В этом браузере — до 40 домашних записей; при сохранении 41-й самая старая заменяется. Экспортируйте важные партии в PGN.</p>
+    <h3 class="library-label">На этом устройстве · ${local.length} / 40</h3>
+    ${damagedLocalGames ? '<p role="status">Есть повреждённые записи: они пропущены. Исправные партии доступны ниже.</p>' : ''}
+    <div class="library-list">${local.length ? local.map((g, i) => `<div class="local-library-row"><button data-open-local="${i}"><span>${escapeHtml(g.tags.White)} — ${escapeHtml(g.tags.Black)}<small>${new Date(g.created).toLocaleDateString('ru-RU')} · ${g.positions.length - 1} ${plural(g.positions.length - 1, ['полуход', 'полухода', 'полуходов'])}</small></span><b>${escapeHtml(g.tags.Result)}</b></button><button data-export-local="${i}" aria-label="Экспорт партии в PGN">PGN ↓</button></div>`).join('') : '<p>Сохраните тренировку кнопкой под записью ходов.</p><button id="library-train">Начать тренировку</button>'}</div>
+    <h3 class="library-label">Сетевые партии</h3><div class="library-list" id="library-online"></div>
+    <p id="library-status" role="status"></p><button id="library-more" hidden>Показать ещё</button>`
   );
   document
     .querySelectorAll('[data-open-local]')
-    .forEach((b) => (b.onclick = () => openLocalReview(b.dataset.openLocal)));
+    .forEach((b) => (b.onclick = () => openLocalReview(local[Number(b.dataset.openLocal)].id)));
+  document
+    .querySelectorAll('[data-export-local]')
+    .forEach((b) => (b.onclick = () => exportLocalGame(local[Number(b.dataset.exportLocal)])));
+  if (!local.length)
+    $('library-train').onclick = () => {
+      $('modal').close();
+      navigate('/');
+      changeMode('computer');
+    };
+  const container = $('library-online'),
+    status = $('library-status'),
+    more = $('library-more');
+  if (!user) {
+    status.textContent = 'Войдите в профиль, чтобы увидеть сетевые партии.';
+    return;
+  }
+  const username = user.username;
+  let page = 1;
+  const games = new Map();
+  async function loadPage() {
+    more.disabled = true;
+    status.textContent = 'Загружаем партии…';
+    try {
+      const player = (await api('players/' + encodeURIComponent(username) + '?page=' + page))
+        .player;
+      if ($('library-online') !== container || !$('modal').open) return;
+      for (const g of player.games) games.set(g.id, g);
+      container.innerHTML = [...games.values()]
+        .map(
+          (g) =>
+            `<a href="/review/${encodeURIComponent(g.id)}"><span>С ${escapeHtml(g.opponent.username)}<small>${escapeHtml(g.control)} · ${dateLabel(g.created)}</small></span><b>${{ win: 'Победа', draw: 'Ничья', loss: 'Поражение' }[g.result]}</b></a>`
+        )
+        .join('');
+      page++;
+      status.textContent = games.size
+        ? `Показано ${games.size} из ${player.total_games}`
+        : 'Завершённых сетевых партий пока нет.';
+      more.hidden = games.size >= player.total_games || !player.games.length;
+      more.textContent = 'Показать ещё';
+    } catch {
+      if ($('library-online') !== container || !$('modal').open) return;
+      status.textContent =
+        'Не удалось загрузить партии. Уже загруженные записи сохранены в списке.';
+      more.hidden = false;
+      more.textContent = 'Повторить загрузку';
+    } finally {
+      more.disabled = false;
+    }
+  }
+  more.onclick = loadPage;
+  await loadPage();
 }
 async function openLocalReview(id) {
   const r = savedGames().find((g) => g.id === id);

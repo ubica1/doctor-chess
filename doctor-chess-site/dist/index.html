@@ -7,8 +7,8 @@
     <meta name="description" content="Doctor Chess — ваша домашняя шахматная комната." />
     <link rel="icon" type="image/svg+xml" href="/doctor.svg" />
     <title>Doctor Chess · Шахматная комната</title>
-    <link rel="stylesheet" href="/style.css?v=0.6.0" />
-    <link rel="stylesheet" href="/theme.css?v=0.6.0" />
+    <link rel="stylesheet" href="/style.css?v=0.6.1" />
+    <link rel="stylesheet" href="/theme.css?v=0.6.1" />
   </head>
   <body>
     <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg">
@@ -56,7 +56,10 @@
         ><span class="brand-seal">医</span
         ><span>Doctor Chess<small>GOOD MOVES · GOOD MOOD</small></span></a
       >
-      <nav>
+      <button id="menu-toggle" class="menu-toggle" aria-controls="main-nav" aria-expanded="false">
+        Меню
+      </button>
+      <nav id="main-nav">
         <button class="nav-active" id="nav-play">Игровая комната</button
         ><button id="nav-academy">Школа Доктора</button><button id="nav-library">Мои партии</button
         ><button id="nav-import">Импорт</button><button id="nav-players">Игроки</button
@@ -163,6 +166,29 @@
             <div><strong id="bottom">Вы</strong><small id="bottom-meta">Белые начинают</small></div>
             <span class="clock" id="clock-bottom">05:00</span>
           </div>
+          <div class="board-toolbar">
+            <span id="status" role="status">Выберите режим и начните партию</span
+            ><button id="hint">✧ Подсказка</button
+            ><button id="undo" title="Отменить ход" aria-label="Отменить ход">↶</button
+            ><button id="sound" aria-label="Включить звук ходов" title="Звук ходов">♪</button
+            ><button id="flip" title="Перевернуть доску" aria-label="Перевернуть доску">⇅</button>
+          </div>
+          <p class="hint-note" id="hint-note" role="status"></p>
+          <section class="coach-panel" id="coach-panel" hidden aria-label="Разбор Stockfish">
+            <div class="coach-heading">
+              <strong id="coach-score"></strong><span id="coach-depth"></span>
+            </div>
+            <div class="coach-meter" aria-hidden="true"><span id="coach-fill"></span></div>
+            <p id="coach-line"></p>
+            <small
+              >Лучшее продолжение при точных ответах. Оценка может измениться при более глубоком
+              расчёте.</small
+            >
+          </section>
+          <div class="game-actions" id="game-actions" hidden>
+            <button id="draw">Предложить ничью</button><button id="resign">Сдаться</button
+            ><button id="decline-draw" hidden>Отклонить ничью</button>
+          </div>
           <div class="premove-bar" id="premove-bar" hidden>
             <span id="premove-caption"></span><button id="cancel-premove">Отменить ×</button>
           </div>
@@ -178,15 +204,10 @@
             ><button id="review-next" aria-label="Следующий ход">›</button
             ><button id="review-live" aria-label="Текущая позиция">›|</button>
           </div>
-          <div class="board-toolbar">
-            <span id="status" role="status">Выберите режим и начните партию</span
-            ><button id="undo" title="Отменить ход" aria-label="Отменить ход">↶</button
-            ><button id="sound" aria-label="Включить звук ходов" title="Звук ходов">♪</button
-            ><button id="flip" title="Перевернуть доску" aria-label="Перевернуть доску">⇅</button>
-          </div>
         </section>
         <aside class="right-column">
-          <section class="play-card">
+          <details class="play-card" id="game-settings">
+            <summary>Настройки партии</summary>
             <div class="card-label"><span>ЗА ВАШИМ СТОЛОМ</span><b>01</b></div>
             <h2>Выбирай компанию</h2>
             <div class="mode-tabs">
@@ -198,7 +219,7 @@
               Вернуться в сетевую партию →
             </button>
             <div class="bot-settings" id="bot-settings" hidden>
-              <label for="bot-level">Настроение доктора</label
+              <label for="bot-level">Сложность</label
               ><select id="bot-level">
                 <option value="1">Спокойный · Stockfish</option>
                 <option value="2" selected>Сильный · Stockfish</option>
@@ -244,10 +265,7 @@
               ></label
             ><button class="primary" id="new">Найти соперника <span>↗</span></button>
             <p class="queue-note" id="queue-note">Рейтинговая партия · случайный соперник</p>
-            <div class="game-actions" id="game-actions" hidden>
-              <button id="draw">Предложить ничью</button><button id="resign">Сдаться</button
-              ><button id="decline-draw" hidden>Отклонить ничью</button>
-            </div>
+
             <div class="postgame" id="postgame" hidden>
               <h3>Ещё одну?</h3>
               <button class="primary" id="rematch">Предложить реванш</button
@@ -255,7 +273,7 @@
               <p id="rematch-note"></p>
               <a class="postgame-review" id="postgame-review" href="/">Разобрать эту партию →</a>
             </div>
-          </section>
+          </details>
           <section class="game-report" id="game-report" hidden>
             <div class="card-label">
               <span>РАЗБОР STOCKFISH</span><button id="report-cancel">Остановить</button>
@@ -276,27 +294,17 @@
             <div class="card-label"><span>ЗАПИСЬ ПАРТИИ</span><span id="count">0 ходов</span></div>
             <div id="moves">Здесь останутся ваши ходы.</div>
             <div class="study-actions">
-              <button id="hint">✧ Подсказка</button><button id="export-pgn">PGN ↓</button
-              ><button id="save-game">Сохранить</button>
+              <button id="export-pgn">PGN ↓</button><button id="save-game">Сохранить</button>
             </div>
+            <p class="muted library-limit">
+              До 40 домашних записей; следующая заменит самую старую. Важные партии скачайте в PGN.
+            </p>
             <div class="analysis-tools">
               <button id="make-variation">Вариант на доске</button
               ><button id="train-position">С доктором отсюда</button
               ><button id="copy-fen">Скопировать FEN</button
               ><button id="analyze-game">Разобрать всю партию</button>
             </div>
-            <p class="hint-note" id="hint-note" role="status"></p>
-            <section class="coach-panel" id="coach-panel" hidden aria-label="Разбор Stockfish">
-              <div class="coach-heading">
-                <strong id="coach-score"></strong><span id="coach-depth"></span>
-              </div>
-              <div class="coach-meter" aria-hidden="true"><span id="coach-fill"></span></div>
-              <p id="coach-line"></p>
-              <small
-                >Лучшее продолжение при точных ответах. Оценка может измениться при более глубоком
-                расчёте.</small
-              >
-            </section>
           </section>
           <button class="puzzle-link" id="puzzle">
             <span>♞</span>
@@ -347,20 +355,20 @@
       </div>
     </dialog>
     <div class="toast" id="toast" role="status" hidden></div>
-    <script src="/engine.js?v=0.6.0"></script>
-    <script src="/notation.js?v=0.6.0"></script>
-    <script src="/pieces.js?v=0.6.0"></script>
-    <script src="/community.js?v=0.6.0"></script>
-    <script src="/board-view.js?v=0.6.0"></script>
-    <script src="/doctor-book.js?v=0.6.0"></script>
-    <script src="/stockfish-client.js?v=0.6.0"></script>
-    <script src="/outcome.js?v=0.6.0"></script>
-    <script src="/academy.js?v=0.6.0"></script>
+    <script src="/engine.js?v=0.6.1"></script>
+    <script src="/notation.js?v=0.6.1"></script>
+    <script src="/pieces.js?v=0.6.1"></script>
+    <script src="/community.js?v=0.6.1"></script>
+    <script src="/board-view.js?v=0.6.1"></script>
+    <script src="/doctor-book.js?v=0.6.1"></script>
+    <script src="/stockfish-client.js?v=0.6.1"></script>
+    <script src="/outcome.js?v=0.6.1"></script>
+    <script src="/academy.js?v=0.6.1"></script>
     <script src="/game-report.js?v=0.6.2"></script>
-    <script src="/studio.js?v=0.6.0"></script>
-    <script src="/workbench.js?v=0.6.0"></script>
-    <script src="/club.js?v=0.6.0"></script>
-    <script src="/premoves.js?v=0.6.0"></script>
-    <script src="/app.js?v=0.6.0"></script>
+    <script src="/studio.js?v=0.6.1"></script>
+    <script src="/workbench.js?v=0.6.1"></script>
+    <script src="/club.js?v=0.6.1"></script>
+    <script src="/premoves.js?v=0.6.1"></script>
+    <script src="/app.js?v=0.6.1"></script>
   </body>
 </html>

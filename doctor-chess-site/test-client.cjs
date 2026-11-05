@@ -383,6 +383,42 @@ async function appTests() {
   run("localStorage.setItem('dc-reports-v1','broken');reportIdentity='';updateGameReport()");
   assert.equal(run('reportData'), null);
   console.log('PASS: cancelled full-game analysis isolates subsequent engine requests');
+  // Library keeps earlier pages after a failed request and never duplicates games.
+  run("user={username:'Alpha'}");
+  let failSecond = true;
+  const pageRequests = [];
+  pendingFetch = async (url) => {
+    const page = Number(new URL(url, 'http://localhost').searchParams.get('page'));
+    pageRequests.push(page);
+    if (page === 2 && failSecond) return { ok: false, json: async () => ({ error: 'offline' }) };
+    const games = Array.from({ length: page === 3 ? 1 : 12 }, (_, i) => ({
+      id: 'archive-' + ((page - 1) * 12 + i),
+      opponent: { username: 'Opponent' },
+      control: '3+0',
+      created: 1,
+      result: 'draw',
+    }));
+    return { ok: true, json: async () => ({ player: { games, total_games: 25 } }) };
+  };
+  context.dateLabel = () => 'date';
+  const validLocal = run('savedGames()[0]');
+  context.localStorage.setItem('dc-library', JSON.stringify([null, { id: 'broken' }, validLocal]));
+  assert.equal(run('savedGames().length'), 1);
+  assert.equal(run('damagedLocalGames'), 2);
+  await run('openLibrary()');
+  assert.equal((el.get('library-online').innerHTML.match(/href=/g) || []).length, 12);
+  const firstPage = el.get('library-online').innerHTML;
+  await el.get('library-more').onclick();
+  assert.equal(el.get('library-online').innerHTML, firstPage);
+  assert.equal(el.get('library-more').hidden, false);
+  failSecond = false;
+  await el.get('library-more').onclick();
+  await el.get('library-more').onclick();
+  assert.equal((el.get('library-online').innerHTML.match(/href=/g) || []).length, 25);
+  assert.equal(el.get('library-more').hidden, true);
+  assert.deepEqual(pageRequests, [1, 2, 2, 3]);
+  pendingFetch = null;
+  console.log('PASS: library pagination, retry, no duplicates and damaged local records');
   console.log(
     'PASS: result popup once, server confirmation, cancelled book move and stale hint isolation'
   );

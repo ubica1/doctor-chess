@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml"><img src="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml/badge.svg" alt="Проверки" /></a>
-  <img src="https://img.shields.io/badge/version-0.6.0-B92D28?style=flat-square" alt="Версия 0.6.0" />
+  <img src="https://img.shields.io/badge/version-0.6.1-B92D28?style=flat-square" alt="Версия 0.6.1" />
   <img src="https://img.shields.io/badge/Python-3.12%2B-BD913E?style=flat-square" alt="Python 3.12 и новее" />
   <img src="https://img.shields.io/badge/runtime_install-not_required-85231F?style=flat-square" alt="Запуск без установки runtime-пакетов" />
 </p>
@@ -17,7 +17,11 @@
 
 Интерфейс на русском. Простые системные шрифты, читаемые подписи, плавные фигуры и тот самый доктор в наушниках. Базовая версия работает локально; мобильное приложение остаётся следующей большой целью.
 
-## В выпуске 0.6.0
+## Исправления 0.6.1
+
+Компактная игровая комната, полная библиотека с пагинацией, корректные финальные часы, Unicode-имена и строгая проверка ввода. [Подробности, миграция и результаты проверки](docs/REVIEW_FIXES.md).
+
+## Возможности 0.6.0
 
 - **Понятный финал.** Окно победы, поражения или ничьей с причиной, счётом и изменением Elo. Итог остаётся над доской после закрытия окна.
 - **Stockfish 19 Lite.** Локальный WebAssembly-движок в отдельном Worker, три уровня силы и проверка каждого ответа правилами приложения. Резервный движок обозначен явно.

@@ -273,6 +273,7 @@ function capturedPieces() {
 }
 function render() {
   positionFinished = !!(game?.result || (!game && end(s, history)));
+  $('game-page').classList.toggle('playing', !!game || moves.length > 0 || botThinking);
   if (!boardView)
     boardView = new ChessBoardView($('board'), {
       piece,
@@ -309,7 +310,8 @@ function render() {
     displayLast,
     check(displayed, displayed.turn) ? displayed.b.indexOf(displayed.turn === 'w' ? 'K' : 'k') : -1
   );
-  $('count').textContent = moves.length + ' ' + plural(moves.length, ['ход', 'хода', 'ходов']);
+  $('count').textContent =
+    moves.length + ' ' + plural(moves.length, ['полуход', 'полухода', 'полуходов']);
   const taken = capturedPieces();
   $('captured').innerHTML =
     mode === 'puzzle' ? '' : taken.map((p) => '<span>' + piece(p) + '</span>').join('');
@@ -806,6 +808,23 @@ $('draw').onclick = async () => {
   }
 };
 $('close').onclick = () => $('modal').close();
+function closeMenu() {
+  $('main-nav').classList.remove('menu-open');
+  $('menu-toggle').setAttribute('aria-expanded', 'false');
+}
+$('menu-toggle').onclick = () => {
+  const open = $('main-nav').classList.toggle('menu-open');
+  $('menu-toggle').setAttribute('aria-expanded', String(open));
+};
+$('main-nav').addEventListener('click', (event) => {
+  if (event.target.closest('button')) closeMenu();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && $('main-nav').classList.contains('menu-open')) {
+    closeMenu();
+    $('menu-toggle').focus();
+  }
+});
 $('rules').onclick = () =>
   show(
     'Дом хорошей игры.',

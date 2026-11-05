@@ -107,3 +107,17 @@ assert.throws(() => N.fromFEN('P3k3/8/8/8/8/8/8/4K3 w - - 0 1'), /Пешка/);
 console.log(
   'PASS: PGN/FEN import, nested comments/variations, custom Black-to-move numbering, malformed/illegal input rejection'
 );
+
+// A coordinate promotion suffix must describe a real promotion.
+for (const invalid of ['1. g1f3q *', '1. e2e4n *']) assert.throws(() => N.fromPGN(invalid));
+for (const promotion of ['q', 'r', 'b', 'n', '']) {
+  const imported = N.fromPGN(
+    '[SetUp "1"]\n[FEN "7k/P7/8/8/8/8/8/7K w - - 0 1"]\n1. a7a8' + promotion + ' *'
+  );
+  assert.equal(imported.positions.at(-1).b[0], (promotion || 'q').toUpperCase());
+  assert.equal(
+    N.fen(N.fromPGN(N.pgn(imported)).positions.at(-1)),
+    N.fen(imported.positions.at(-1))
+  );
+}
+console.log('PASS: coordinate promotion suffixes and all four promotion round trips');
