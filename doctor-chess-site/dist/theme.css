@@ -2213,3 +2213,31 @@ select:focus-visible {
     flex-direction: column;
   }
 }
+
+.mate-marker {
+  position: absolute;
+  top: 3%;
+  right: 3%;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 40%;
+  height: 40%;
+  border-radius: 50%;
+  background: #fff4d5;
+  color: #a32320;
+  border: 2px solid #b58d32;
+  box-shadow: 0 2px 5px #3d170f60;
+  font:
+    bold clamp(10px, 3.4cqw, 25px) / 1 Georgia,
+    serif;
+  pointer-events: none;
+}
+
+.mate-marker[hidden] {
+  display: none;
+}
+
+#board {
+  container-type: inline-size;
+}

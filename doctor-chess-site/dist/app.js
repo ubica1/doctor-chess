@@ -221,6 +221,7 @@ async function ratings() {
   }
 }
 function resetBoard() {
+  cancelOutcomeReveal();
   cancelGameReport();
   clearPremove();
   stopStudy();
@@ -302,13 +303,16 @@ function render() {
         : reviewIndex > 0
           ? [displayLine.records[reviewIndex - 1]?.from, displayLine.records[reviewIndex - 1]?.to]
           : [];
+  const checked = check(displayed, displayed.turn),
+    kingSquare = checked ? displayed.b.indexOf(displayed.turn === 'w' ? 'K' : 'k') : -1;
   boardView.render(
     displayed,
     flipped,
     selected,
     selected >= 0 && reviewIndex === null ? moveTargets(selected) : [],
     displayLast,
-    check(displayed, displayed.turn) ? displayed.b.indexOf(displayed.turn === 'w' ? 'K' : 'k') : -1
+    kingSquare,
+    checked && !allMoves(displayed) && (!game || !!game.result) ? kingSquare : -1
   );
   $('count').textContent =
     moves.length + ' ' + plural(moves.length, ['полуход', 'полухода', 'полуходов']);

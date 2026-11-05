@@ -34,6 +34,7 @@ function communityNav(which) {
     .forEach((b) => b.classList.toggle('nav-active', b.id === which));
 }
 async function routePage() {
+  cancelOutcomeReveal();
   academyBoard?.destroy?.();
   academyBoard = null;
   stopInvitationWatch();

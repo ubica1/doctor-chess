@@ -17,7 +17,8 @@ class ChessBoardView {
       b.type = 'button';
       b.dataset.index = i;
       b.className = 'sq';
-      b.innerHTML = '<small class="coord rank"></small><small class="coord file"></small>';
+      b.innerHTML =
+        '<small class="coord rank"></small><small class="coord file"></small><span class="mate-marker" aria-hidden="true" hidden>#</span>';
       b.onclick = (e) => {
         if (e.detail === 0) this.onClick(Number(b.dataset.index));
       };
@@ -67,7 +68,7 @@ class ChessBoardView {
       Math.min(7, Math.floor(((x - r.left) / r.width) * 8));
     return this.flipped ? 63 - k : k;
   }
-  render(state, flipped, selected, targets, last, checkSquare = -1) {
+  render(state, flipped, selected, targets, last, checkSquare = -1, mateSquare = -1) {
     if (flipped !== this.flipped) this.cancel();
     this.flipped = flipped;
     const targetSet = new Set(targets),
@@ -86,7 +87,8 @@ class ChessBoardView {
         (lastSet.has(i) ? 'last ' : '') +
         (p && this.canDrag(i) ? 'movable ' : '') +
         (i === checkSquare ? 'in-check' : '');
-      b.setAttribute('aria-label', this.label(i, p));
+      b.setAttribute('aria-label', this.label(i, p) + (i === mateSquare ? ' · Мат' : ''));
+      b.querySelector('.mate-marker').hidden = i !== mateSquare;
       b.setAttribute('aria-pressed', i === selected ? 'true' : 'false');
       const rank = b.querySelector('.rank'),
         file = b.querySelector('.file');

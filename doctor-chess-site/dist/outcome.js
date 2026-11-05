@@ -81,12 +81,38 @@ const ChessOutcome = (() => {
 if (typeof module !== 'undefined') module.exports = ChessOutcome;
 
 let currentOutcome = null;
+let outcomeTimer = null,
+  outcomePending = '',
+  outcomeShown = '',
+  outcomeEpoch = 0;
+function outcomeIdentity() {
+  return game ? game.id + ':' + game.result : mode + ':' + history.length + ':' + s.b.join('');
+}
+function cancelOutcomeReveal() {
+  if (outcomeTimer !== null) clearTimeout(outcomeTimer);
+  outcomeTimer = null;
+  outcomePending = '';
+  outcomeEpoch++;
+}
+function canRevealOutcome() {
+  return (
+    !!currentOutcome &&
+    mode !== 'analysis' &&
+    !variationEditing &&
+    reviewIndex === null &&
+    !busy &&
+    !$('game-page').hidden &&
+    !$('modal').open
+  );
+}
 function updateOutcome() {
   const outcome = ChessOutcome.describe(s, history, { game, mode, botSide, archiveInfo });
   currentOutcome = outcome;
   const showCard = !!outcome && !variationEditing;
   $('result-card').hidden = !showCard;
   if (!showCard) {
+    cancelOutcomeReveal();
+    if (!outcome) outcomeShown = '';
     if ($('result-modal').open) $('result-modal').close();
     return;
   }
@@ -107,7 +133,24 @@ function updateOutcome() {
   $('finish-again').textContent = $('result-again').textContent;
   $('result-again').hidden = mode === 'analysis';
   $('finish-again').hidden = mode === 'analysis';
-  // Keep the last move visible. The result dialog opens only on explicit request.
+  // One uninterrupted delay after the confirmed final move; polls do not restart it.
+  if (!canRevealOutcome()) {
+    cancelOutcomeReveal();
+    return;
+  }
+  const key = outcomeIdentity();
+  if (key === outcomeShown || key === outcomePending) return;
+  cancelOutcomeReveal();
+  outcomePending = key;
+  const epoch = outcomeEpoch;
+  outcomeTimer = setTimeout(() => {
+    if (epoch !== outcomeEpoch) return;
+    outcomeTimer = null;
+    outcomePending = '';
+    if (!canRevealOutcome() || outcomeIdentity() !== key) return;
+    outcomeShown = key;
+    $('result-modal').showModal();
+  }, 1500);
 }
 function initializeOutcome() {
   const close = () => $('result-modal').close();
@@ -128,6 +171,10 @@ function initializeOutcome() {
   };
   $('result-again').onclick = again;
   $('finish-again').onclick = again;
-  $('result-detail').onclick = () => $('result-modal').showModal();
+  $('result-detail').onclick = () => {
+    cancelOutcomeReveal();
+    outcomeShown = outcomeIdentity();
+    $('result-modal').showModal();
+  };
   $('finish-export').onclick = exportPGN;
 }

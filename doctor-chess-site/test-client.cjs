@@ -319,6 +319,12 @@ async function appTests() {
   console.log(
     'PASS: premove waits, executes once on confirmed turn, and is cancelled when a check makes it illegal'
   );
+  const resultTimers = [],
+    resultTimeout = context.setTimeout;
+  context.setTimeout = (fn, ms) => {
+    if (ms === 1500) resultTimers.push(fn);
+    return 1;
+  };
   run(
     "stopStudy();game=null;mode='computer';botSide='w';resetBoard();$('modal').close();s=ChessNotation.fromPGN('1.f3 e5 2.g4 Qh4# *').positions.at(-1);render()"
   );
@@ -328,6 +334,23 @@ async function appTests() {
     'A mate must leave the final move visible without a modal'
   );
   assert.equal(run("$('result-card').hidden"), false);
+  run('render();render()');
+  assert.equal(resultTimers.length, 1, 'Rendering and polls must not restart the result delay');
+  resultTimers[0]();
+  assert(run("$('result-modal').open"), 'Result opens after the delay');
+  run("$('result-modal').close();render()");
+  assert(!run("$('result-modal').open"));
+  run(
+    "resetBoard();render();{const line=ChessNotation.fromPGN('1.f3 e5 2.g4 Qh4# *');s=line.positions.at(-1);history=line.positions.slice(0,-1);moves=line.sans;}render();setReview(0)"
+  );
+  resultTimers.at(-1)();
+  assert(!run("$('result-modal').open"), 'Entering review cancels the delayed result');
+  run('reviewIndex=null;render()');
+  const cancelledResult = resultTimers.at(-1);
+  run('resetBoard();render()');
+  cancelledResult();
+  assert(!run("$('result-modal').open"), 'An old result cannot open over a new game');
+  run("s=ChessNotation.fromPGN('1.f3 e5 2.g4 Qh4# *').positions.at(-1);render()");
   run("$('result-detail').onclick()");
   assert(run("$('result-modal').open"), 'Result details are still available on request');
   run("$('result-modal').close();render();render()");
@@ -336,6 +359,7 @@ async function appTests() {
     false,
     'Repeated rendering must not reopen a dismissed result'
   );
+  context.setTimeout = resultTimeout;
   run("mode='online';game={result:null};updateOutcome()");
   assert.equal(
     run("$('result-card').hidden"),
@@ -478,7 +502,7 @@ async function appTests() {
   pendingFetch = null;
   console.log('PASS: library pagination, retry, no duplicates and damaged local records');
   console.log(
-    'PASS: nonblocking result, manual details, server confirmation, cancelled book move and stale hint isolation'
+    'PASS: delayed result, cancellation on review/reset, manual details and stale request isolation'
   );
   console.log(
     'PASS: bot color switches after opening, confirmation preserves current game, new training honors color'
@@ -558,6 +582,21 @@ function boardTests() {
   b.down(ev(350, 350));
   b.up(ev(350, 350));
   assert.equal(clicked, 36, 'tap/click must stay available');
+  state.b[36] = 'K';
+  b.render(state, true, -1, [], [], 36, 36);
+  const mateCell = b.squares.find((square) => Number(square.dataset.index) === 36);
+  assert.equal(
+    mateCell.querySelector('.mate-marker').hidden,
+    false,
+    'Mate marker follows the king on a flipped board'
+  );
+  assert(mateCell.attrs['aria-label'].includes('Мат'));
+  b.render(state, true, -1, [], []);
+  assert.equal(
+    mateCell.querySelector('.mate-marker').hidden,
+    true,
+    'Reviewing a non-mate position clears the marker'
+  );
   b.destroy();
   assert.deepEqual(removedEvents, ['blur'], 'Destroyed school boards release their window handler');
   console.log('PASS: stable piece/square nodes, drag, cancel, orientation, tap');
