@@ -1,8 +1,8 @@
 {
   "name": "doctor-chess",
-  "version": "0.6.1",
+  "version": "1.0.0",
   "private": true,
-  "description": "A warm Chinese-inspired chess club with DJ Doctor.",
+  "description": "Doctor Chess — online chess, DJ Doctor, analysis and a community of players.",
   "engines": {
     "node": ">=16"
   },
@@ -14,5 +14,14 @@
   },
   "devDependencies": {
     "prettier": "3.6.2"
+  },
+  "license": "GPL-3.0-only",
+  "homepage": "https://doctor-chess.ru",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ubica1/doctor-chess.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ubica1/doctor-chess/issues"
   }
 }

@@ -129,11 +129,18 @@ function toast(t) {
   toastTimer = setTimeout(() => ($('toast').hidden = true), 4000);
 }
 async function api(path, data) {
-  const r = await fetch('/api/' + path, {
-    method: data === undefined ? 'GET' : 'POST',
-    headers: data === undefined ? {} : { 'Content-Type': 'application/json' },
-    body: data === undefined ? undefined : JSON.stringify(data),
-  });
+  let r;
+  try {
+    r = await fetch('/api/' + path, {
+      method: data === undefined ? 'GET' : 'POST',
+      headers: data === undefined ? {} : { 'Content-Type': 'application/json' },
+      body: data === undefined ? undefined : JSON.stringify(data),
+    });
+  } catch {
+    throw Error(
+      'Не удалось подключиться к Doctor Chess. Проверьте соединение и попробуйте ещё раз.'
+    );
+  }
   let x;
   try {
     x = await r.json();
@@ -847,7 +854,13 @@ document.addEventListener('keydown', (event) => {
 $('rules').onclick = () =>
   show(
     'Дом хорошей игры.',
-    '<p>Doctor Chess — уютная шахматная комната. Играйте вдвоём на одном устройстве или найдите случайного игрока с таким же контролем времени.</p><p>У каждого ритма свой рейтинг: пуля, блиц, рапид и классика. Начинаем с 1200, дальше всё решает игра.</p><p>Сейчас клуб работает на локальном сервере. В очереди только настоящие игроки: для проверки откройте второй аккаунт в другом браузере. Для игроков из интернета потребуется отдельное размещение сервера.</p>'
+    '<p>Doctor Chess — шахматный клуб на хорошей волне. Найдите соперника, пригласите друга по ссылке или сыграйте с DJ Doctor.</p><p>Для пули, блица, рапида и классики ведутся отдельные рейтинги. Старт — 1200; дружеские партии и тренировки рейтинг не меняют.</p><p>В Школе Доктора изучайте дебюты и решайте задачи. После партии возвращайтесь к важным моментам с разбором Stockfish.</p><p>Doctor Chess — приложение с открытым исходным кодом под GNU GPLv3. <a href="https://github.com/ubica1/doctor-chess" target="_blank" rel="noopener">Исходный код ↗</a> · <a href="https://github.com/ubica1/doctor-chess/issues" target="_blank" rel="noopener">Обратная связь ↗</a></p>'
+  );
+$('about-club').onclick = $('rules').onclick;
+$('privacy-info').onclick = () =>
+  show(
+    'Ваши партии и данные.',
+    '<p>Имя, эмблема, описание, рейтинги и завершённые сетевые партии видны другим игрокам. Войти в активную игровую комнату могут её участники.</p><p>Сетевые партии и рейтинги сохраняются в профиле. Домашние записи, настройки, разборы и прогресс обучения хранятся в браузере на этом устройстве. Очистка данных браузера удаляет эти записи; важные партии можно скачать в PGN.</p><p>Соединение с Doctor Chess защищено HTTPS. Пароли и сессии не публикуются вместе с исходным кодом. Расчёт Stockfish выполняется на вашем устройстве.</p><p><a href="https://github.com/ubica1/doctor-chess/blob/main/SECURITY.md" target="_blank" rel="noopener">Подробнее о данных и безопасности ↗</a></p>'
   );
 initializeStudio();
 restoreDesk();
@@ -860,6 +873,8 @@ api('me')
     await poll();
     scheduleBot();
   })
-  .catch(() => toast('Запустите игровой сервер: python server.py'));
+  .catch(() =>
+    toast('Не удалось подключиться к Doctor Chess. Проверьте соединение и обновите страницу.')
+  );
 setInterval(poll, 1000);
 setInterval(tickClocks, 200);

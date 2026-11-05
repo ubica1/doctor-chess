@@ -138,6 +138,21 @@ vm.runInContext(fs.readFileSync('dist/app.js', 'utf8'), context);
 const run = (src) => vm.runInContext(src, context);
 async function appTests() {
   await new Promise((r) => setImmediate(r));
+  pendingFetch = async () => {
+    throw new TypeError('Failed to fetch');
+  };
+  await assert.rejects(run("api('me')"), /Не удалось подключиться к Doctor Chess/);
+  pendingFetch = async () => ({
+    ok: false,
+    json: async () => {
+      throw new SyntaxError('Not JSON');
+    },
+  });
+  await assert.rejects(run("api('me')"), /Нет связи с игровым сервером/);
+  pendingFetch = async () => ({ ok: false, json: async () => ({ error: 'Неверный пароль' }) });
+  await assert.rejects(run("api('login', {})"), /Неверный пароль/);
+  pendingFetch = null;
+  console.log('PASS: connection failures use player-facing messages and preserve account errors');
   run("user={id:'a',username:'Alpha',avatar:'crane',ratings:{blitz:{rating:1200}}};mode='online'");
   networkGame = run(
     "({id:'g',control:'5+0',you:'w',state:initial(),moves:[],last:[],clocks:{w:300,b:300},white:user,black:user,category:'blitz',result:null})"

@@ -2379,3 +2379,61 @@ select:focus-visible {
 #moves.empty-score {
   display: block;
 }
+
+.product-footer {
+  width: min(92%, 1320px);
+  margin: 32px auto 0;
+  padding: 24px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+.footer-links a,
+.footer-links button {
+  color: var(--red-dark);
+  font: inherit;
+  border: 0;
+  background: none;
+  padding: 8px 0;
+  text-decoration: none;
+  cursor: pointer;
+}
+.footer-links a:hover,
+.footer-links button:hover {
+  text-decoration: underline;
+}
+.footer-links a:focus-visible,
+.footer-links button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 4px;
+}
+@media (max-width: 640px) {
+  .product-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .footer-links {
+    gap: 6px 18px;
+  }
+}
+
+#content > p {
+  font-size: 16px;
+  line-height: 1.75;
+}
+#content > p a {
+  color: var(--red-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

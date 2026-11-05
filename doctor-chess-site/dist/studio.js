@@ -217,7 +217,7 @@ function updateBotPlayers() {
         side === botSide
           ? 'Учебная партия'
           : botMoveSource.includes('Резервный')
-            ? 'Учебный движок · резерв'
+            ? 'Резервный соперник'
             : ['Stockfish · спокойный', 'Stockfish · сильный', 'Stockfish · максимум'][
                 botLevel - 1
               ];
@@ -293,7 +293,7 @@ function scheduleBot() {
         data.source === 'book'
           ? data.title + ' · стр. ' + data.page
           : data.source === 'fallback'
-            ? 'Резервный движок · Stockfish недоступен'
+            ? 'Резервный соперник · Stockfish недоступен'
             : data.source === 'plan'
               ? 'Продолжает построение Доктора · расчёт Stockfish'
               : 'Вне книжной линии · тактический расчёт Stockfish';
@@ -312,7 +312,7 @@ function scheduleBot() {
       if (generation !== botGeneration) return;
       // Stay playable offline/on unsupported WASM devices; never label fallback Stockfish.
       botWorker?.terminate();
-      botEngineNote = 'Stockfish недоступен · резервный движок';
+      botEngineNote = 'Stockfish недоступен · резервный соперник';
       botWorker = new Worker('/doctor-worker.js');
       botWorker.onmessage = (e) =>
         onMove({ data: { ...e.data, engine: 'Учебный движок', source: 'fallback' } });

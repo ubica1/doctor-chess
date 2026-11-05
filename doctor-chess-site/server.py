@@ -256,6 +256,9 @@ club = ClubGames(db, CONTROLS, INITIAL, profile, game_row, public_game)
 
 
 class Handler(SimpleHTTPRequestHandler):
+    server_version = "DoctorChess"
+    sys_version = ""
+
     def __init__(self, *args, **kwargs):
         self.timeout = 15
         super().__init__(*args, directory=str(BASE / "dist"), **kwargs)
@@ -678,5 +681,5 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "4173"))
     host = os.environ.get("DOCTOR_CHESS_HOST", "127.0.0.1")
-    print(f"Doctor Chess: {PUBLIC_ORIGIN or f'http://{host}:{port}'}", flush=True)
+    print("Doctor Chess is ready", flush=True)
     ThreadingHTTPServer((host, port), Handler).serve_forever()
