@@ -34,6 +34,8 @@ function communityNav(which) {
     .forEach((b) => b.classList.toggle('nav-active', b.id === which));
 }
 async function routePage() {
+  roomGeneration++;
+  roomLoading = false;
   cancelOutcomeReveal();
   academyBoard?.destroy?.();
   academyBoard = null;
@@ -41,12 +43,37 @@ async function routePage() {
   const path = location.pathname;
   communityRequest++;
   if (path === '/' || path === '/index.html') {
+    $('game-page').classList.add('lobby');
+    $('game-page').classList.remove('game-room');
+    $('room-heading').hidden = true;
+    $('game-settings').open = true;
     $('game-page').hidden = false;
     $('community-page').hidden = true;
     communityNav('nav-play');
     document.title = 'Doctor Chess · Шахматная комната';
+    updateResume();
     return;
   }
+  if (/^\/game\/[a-f0-9]+$/.test(path)) return loadGameRoom(path.slice(6));
+  if (/^\/play\/(computer|local|puzzle|analysis)$/.test(path)) {
+    const target = path.slice(6),
+      generation = roomGeneration;
+    if (mode !== target) await changeMode(target);
+    if (generation !== roomGeneration) return;
+    displayRoom(
+      target === 'computer'
+        ? 'За столом с DJ Doctor'
+        : target === 'analysis'
+          ? 'Разбор за своим столом'
+          : target === 'local'
+            ? 'Домашняя партия'
+            : 'Разминка для ума'
+    );
+    render();
+    return;
+  }
+  $('game-page').classList.remove('lobby', 'game-room');
+  $('room-heading').hidden = true;
   if (path.startsWith('/invite/')) return loadInvitation(path.slice(8));
   if (path === '/players') return showPlayers();
   if (path === '/academy') return showAcademy();
@@ -220,7 +247,9 @@ document.addEventListener('click', (e) => {
       url.pathname === '/academy' ||
       url.pathname.startsWith('/player/') ||
       url.pathname.startsWith('/review/') ||
-      url.pathname.startsWith('/invite/'))
+      url.pathname.startsWith('/invite/') ||
+      url.pathname.startsWith('/game/') ||
+      url.pathname.startsWith('/play/'))
   ) {
     e.preventDefault();
     navigate(url.pathname);

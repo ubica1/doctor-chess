@@ -132,6 +132,8 @@ vm.runInContext(fs.readFileSync('dist/studio.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/workbench.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/club.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/premoves.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync('dist/game-room.js', 'utf8'), context);
+context.communityNav = () => {};
 vm.runInContext(fs.readFileSync('dist/app.js', 'utf8'), context);
 const run = (src) => vm.runInContext(src, context);
 async function appTests() {

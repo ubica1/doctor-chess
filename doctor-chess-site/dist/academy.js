@@ -290,6 +290,7 @@ function showAcademy() {
     s = position;
     botSide = position.turn;
     flipped = botSide === 'b';
+    openPracticeRoom();
     render();
     toast('Вы играете ' + (botSide === 'w' ? 'белыми' : 'чёрными') + ' из учебной позиции.');
   };

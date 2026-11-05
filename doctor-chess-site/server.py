@@ -305,6 +305,8 @@ class Handler(SimpleHTTPRequestHandler):
             self.path.startswith("/player/")
             or self.path.startswith("/review/")
             or self.path.startswith("/invite/")
+            or self.path.startswith("/game/")
+            or self.path.startswith("/play/")
             or urlparse(self.path).path in ("/players", "/academy")
         ):
             self.path = "/index.html"
@@ -316,6 +318,18 @@ class Handler(SimpleHTTPRequestHandler):
                 uid = self.user()
                 parsed = urlparse(self.path)
                 query = parse_qs(parsed.query)
+                if parsed.path.startswith("/api/play/"):
+                    if not uid:
+                        return self.reply({"error": "Войдите в профиль участника"}, 401)
+                    gid = parsed.path[len("/api/play/") :]
+                    row = db.execute(
+                        "SELECT white,black FROM games WHERE id=?", (gid,)
+                    ).fetchone()
+                    if not row or uid not in (row["white"], row["black"]):
+                        return self.reply(
+                            {"error": "Партия не найдена или недоступна"}, 404
+                        )
+                    return self.reply({"game": public_game(game_row(gid), uid)})
                 if parsed.path.startswith("/api/challenges/"):
                     token = parsed.path[len("/api/challenges/") :]
                     return self.reply({"challenge": club.public(club.row(token), uid)})

@@ -102,6 +102,7 @@ function canRevealOutcome() {
     reviewIndex === null &&
     !busy &&
     !$('game-page').hidden &&
+    !$('game-page').classList.contains('lobby') &&
     !$('modal').open
   );
 }

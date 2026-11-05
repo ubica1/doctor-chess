@@ -51,8 +51,13 @@ function moveSound(capture = false) {
   } catch {}
 }
 function updateResume() {
+  const practice = $('resume-practice');
+  practice.hidden = !['computer', 'local', 'puzzle', 'analysis'].includes(mode) || !moves.length;
   const b = $('resume-game');
-  b.hidden = mode === 'online' || !remoteGame || !!remoteGame.result;
+  b.hidden =
+    !remoteGame ||
+    !!remoteGame.result ||
+    (mode === 'online' && typeof location !== 'undefined' && gameRoute() === remoteGame.id);
   b.textContent = 'Вернуться в партию · ' + (remoteGame?.control || '') + ' →';
 }
 function canInteract() {
@@ -576,6 +581,7 @@ function acceptGame(g) {
     lineHistory = history;
     lineState = s;
   }
+  syncGameRoute(g, previous);
   if (changed) {
     selected = -1;
     if (!previous || previous.id !== g.id) flipped = g.you === 'b';
@@ -608,6 +614,7 @@ async function poll() {
     remoteGame = x.game;
     updateResume();
     if (mode !== 'online') return;
+    if (gameRoute() && x.game?.id !== gameRoute() && !game?.rematch) return;
     queued = x.queued;
     if (x.game) acceptGame(x.game);
     else if (queued) {
@@ -677,9 +684,13 @@ async function changeMode(m) {
 }
 async function start() {
   if (busy) return;
-  if (mode === 'analysis') return changeMode('computer');
+  if (mode === 'analysis') {
+    await changeMode('computer');
+    return startLocal();
+  }
   if (mode === 'computer' && (botThinking || botProblem)) {
     stopStudy();
+    openPracticeRoom();
     render();
     return scheduleBot();
   }
@@ -731,10 +742,14 @@ function startLocal() {
     s.rights = '';
   }
   if (mode === 'computer') flipped = botSide === 'b';
+  openPracticeRoom();
   render();
   if (mode === 'computer') scheduleBot();
 }
-$('resume-game').onclick = () => changeMode('online');
+$('resume-practice').onclick = () => navigate('/play/' + mode);
+$('resume-game').onclick = () => {
+  if (remoteGame) navigate('/game/' + remoteGame.id);
+};
 $('sound').onclick = () => {
   soundsEnabled = !soundsEnabled;
   localStorage.setItem('dc-sounds', soundsEnabled ? 'on' : 'off');

@@ -2293,3 +2293,89 @@ select:focus-visible {
     font-size: 20px;
   }
 }
+
+#game-page.lobby #play,
+#game-page.lobby .left-column,
+#game-page.lobby .score-card,
+#game-page.lobby .game-report {
+  display: none;
+}
+#game-page.lobby .room {
+  display: block;
+  max-width: 760px;
+  margin: 0 auto;
+}
+#game-page.lobby .right-column {
+  width: 100%;
+  display: block;
+}
+#game-page.lobby .puzzle-link {
+  margin-top: 20px;
+}
+#game-page.lobby .welcome {
+  padding-block: 28px;
+}
+.room-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 0;
+}
+.room-heading a {
+  color: #982b26;
+  font-size: 15px;
+}
+.room-heading strong {
+  font:
+    22px Georgia,
+    serif;
+  color: #932c25;
+}
+#game-page.game-room > .welcome,
+#game-page.game-room .left-column {
+  display: none;
+}
+#game-page.game-room .room {
+  grid-template-columns: minmax(0, 1fr) 310px;
+  max-width: 1080px;
+  margin: auto;
+}
+#game-page.game-room #play {
+  max-width: min(640px, max(280px, calc(100dvh - 290px)));
+}
+#game-page.game-room .mode-tabs,
+#game-page.game-room #friend-game {
+  display: none;
+}
+@media (max-width: 800px) {
+  #game-page.game-room .room {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  #game-page.game-room .right-column {
+    width: 100%;
+  }
+  .room-heading {
+    gap: 10px;
+  }
+  .room-heading strong {
+    font-size: 16px;
+  }
+  .room-heading img {
+    width: 46px;
+    height: 43px;
+  }
+  #game-page.game-room #play {
+    max-width: min(100%, max(280px, calc(100dvh - 280px)));
+  }
+}
+
+#game-page.game-room #resume-practice {
+  display: none;
+}
+
+#moves.empty-score {
+  display: block;
+}

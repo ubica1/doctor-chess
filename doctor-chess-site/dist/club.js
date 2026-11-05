@@ -10,9 +10,10 @@ function stopInvitationWatch() {
 }
 async function enterMatchedGame(next) {
   if (busy) return false;
-  navigate('/');
+  remoteGame = next;
   await changeMode('online');
   acceptGame(next);
+  navigate('/game/' + next.id);
   return true;
 }
 function updateSocialPanel() {

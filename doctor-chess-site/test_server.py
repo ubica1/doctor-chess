@@ -213,6 +213,26 @@ class SocialGames(unittest.TestCase):
         self.assertEqual(status, 200, out)
         return out["game"]
 
+    def test_private_game_room_restores_only_participants(self):
+        g = self.casual()
+        endpoint = "play/" + g["id"]
+        self.assertEqual(call(self.anon, endpoint)[0], 401)
+        self.assertEqual(call(self.other, endpoint)[0], 404)
+        self.assertEqual(call(self.host, "play/missing")[0], 404)
+        for c, side in [(self.host, "w"), (self.guest, "b")]:
+            status, out = call(c, endpoint)
+            self.assertEqual(status, 200)
+            self.assertEqual(out["game"]["id"], g["id"])
+            self.assertEqual(out["game"]["you"], side)
+        call(self.host, "move", {"game": g["id"], "from": 52, "to": 36})
+        self.assertEqual(len(call(self.guest, endpoint)[1]["game"]["moves"]), 1)
+        call(self.guest, "resign", {"game": g["id"]})
+        self.assertEqual(call(self.host, endpoint)[1]["game"]["result"], "w")
+        for route in ["/game/" + g["id"], "/play/computer"]:
+            with self.anon.open(BASE + route) as response:
+                self.assertEqual(response.status, 200)
+                self.assertIn(b'id="room-heading"', response.read())
+
     def test_casual_invitation_has_one_guest_and_no_elo(self):
         invitation = self.create()
         token = invitation["id"]

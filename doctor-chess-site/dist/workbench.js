@@ -122,6 +122,7 @@ async function trainFromPosition() {
     created: Date.now(),
   };
   lineCache = null;
+  openPracticeRoom();
   render();
 }
 async function installImported(line) {
@@ -149,6 +150,7 @@ async function installImported(line) {
   lineCache = line;
   lineHistory = history;
   lineState = s;
+  openPracticeRoom();
   render();
   toast(
     line.records.length

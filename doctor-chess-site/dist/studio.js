@@ -89,6 +89,7 @@ function updateTimeline() {
     timelineKey = key;
     const list = $('moves');
     list.replaceChildren();
+    list.classList.toggle('empty-score', !line.sans.length);
     if (!line.sans.length) list.textContent = 'Первые ходы задают ритм.';
     for (let i = 0; i < line.sans.length; i++) {
       const before = line.positions[i];
@@ -525,10 +526,11 @@ async function openLibrary() {
     .querySelectorAll('[data-export-local]')
     .forEach((b) => (b.onclick = () => exportLocalGame(local[Number(b.dataset.exportLocal)])));
   if (!local.length)
-    $('library-train').onclick = () => {
+    $('library-train').onclick = async () => {
       $('modal').close();
       navigate('/');
-      changeMode('computer');
+      await changeMode('computer');
+      openPracticeRoom();
     };
   const container = $('library-online'),
     status = $('library-status'),
@@ -591,6 +593,7 @@ async function openLocalReview(id) {
     moves = currentLine().sans;
     reviewIndex = 0;
     flipped = false;
+    openPracticeRoom();
     render();
   } catch {
     toast('Не удалось прочитать запись партии');
@@ -613,8 +616,7 @@ async function loadReviewGame(id) {
     moves = line.sans;
     reviewIndex = 0;
     flipped = false;
-    $('game-page').hidden = false;
-    $('community-page').hidden = true;
+    displayRoom('Разбор партии');
     communityNav('nav-play');
     document.title = 'Разбор партии · Doctor Chess';
     render();
