@@ -2241,3 +2241,55 @@ select:focus-visible {
 #board {
   container-type: inline-size;
 }
+
+/* DJ Doctor stays at the table, including active games and small screens. */
+#game-page .welcome {
+  gap: 16px;
+  align-items: center;
+}
+#game-page.playing .welcome {
+  display: flex;
+  padding-block: 4px;
+}
+#game-page.playing .welcome h1 {
+  font-size: 22px;
+}
+#game-page.playing .welcome p {
+  display: none;
+}
+#game-page .welcome .doctor-mark {
+  display: block;
+  position: relative;
+  flex: none;
+  width: 86px;
+  min-width: 86px;
+  height: 84px;
+  margin: 0;
+  transform: none;
+}
+#game-page .doctor-mark svg {
+  width: 86px;
+  height: 72px;
+}
+#game-page .doctor-mark > span {
+  font-size: 14px;
+  right: 0;
+  bottom: 0;
+}
+@media (max-width: 800px) {
+  #game-page .welcome .doctor-mark {
+    width: 58px;
+    min-width: 58px;
+    height: 62px;
+  }
+  #game-page .doctor-mark svg {
+    width: 58px;
+    height: 50px;
+  }
+  #game-page .doctor-mark > span {
+    font-size: 11px;
+  }
+  #game-page.playing .welcome h1 {
+    font-size: 20px;
+  }
+}
