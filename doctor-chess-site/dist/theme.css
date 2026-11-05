@@ -2157,3 +2157,59 @@ select:focus-visible {
     display: none;
   }
 }
+
+.practice-dashboard {
+  margin: 0 0 35px;
+  padding: 25px;
+  background: #fff9ec;
+  border: 1px solid #ccb37a;
+  border-radius: 8px 13px 6px 10px;
+}
+.practice-dashboard h2 {
+  font:
+    27px Georgia,
+    serif;
+  color: #922b25;
+  line-height: 1.5;
+  margin: 12px 0;
+}
+.practice-dashboard p {
+  line-height: 1.7;
+  font-size: 15px;
+  color: #806c50;
+}
+#academy-meter {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin: 18px 0 24px;
+  accent-color: #b92d28;
+}
+.practice-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0;
+}
+.academy-list .practice-filters button {
+  width: auto;
+  border: 1px solid #c9b379;
+  padding: 8px 10px;
+  font-size: 14px;
+  border-radius: 4px;
+}
+.practice-filters button[aria-pressed='true'] {
+  background: #a82e28;
+  color: #fff7e9;
+}
+@media (max-width: 600px) {
+  .practice-dashboard {
+    padding: 18px;
+  }
+  .practice-dashboard h2 {
+    font-size: 23px;
+  }
+  .practice-dashboard .academy-buttons {
+    flex-direction: column;
+  }
+}

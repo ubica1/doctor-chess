@@ -400,6 +400,31 @@ async function appTests() {
   }
   assert(run('academySolved'));
   assert.equal(run("JSON.parse(localStorage.getItem('dc-repertoire'))[0]"), true);
+  assert.equal(
+    run("DoctorPractice.status(practiceRecords(),academyProgress('dc-repertoire'),0)"),
+    'done'
+  );
+  run('startAcademyRehearsal();academyAssisted=true');
+  for (let i = 0; i < 20 && !run('academySolved'); i++) {
+    run('{const m=academyLine.records[academyPly];academySelected=m.from;academyPick(m.to)}');
+    while (delayedReplies.length) delayedReplies.shift()();
+  }
+  assert.equal(
+    run("DoctorPractice.status(practiceRecords(),academyProgress('dc-repertoire'),0)"),
+    'repeat',
+    'Assisted attempt returns even a previously completed line to review'
+  );
+  run('nextAcademyPractice(true)');
+  assert.equal(run('academyLesson'), 0);
+  assert.equal(run('academyRehearsal'), true);
+  assert.equal(run('Object.keys(DoctorPractice.read("broken",15)).length'), 0);
+  assert.equal(run('Object.keys(DoctorPractice.read("[]",15)).length'), 0);
+  run("localStorage.setItem('dc-academy-last','7');loadAcademyLesson(0,false)");
+  assert.equal(
+    run("localStorage.getItem('dc-academy-last')"),
+    '7',
+    'Opening the school preview must preserve the remembered lesson'
+  );
   run('loadAcademyLesson(10);startAcademyRehearsal()');
   assert.equal(run('academyPly'), 1, 'Black repertoire starts after the first white move');
   run('{const m=academyLine.records[academyPly];academySelected=m.from;academyPick(m.to)}');

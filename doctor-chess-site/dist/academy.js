@@ -56,6 +56,95 @@ let academyBoard = null,
 let academyLesson = 0,
   academyRehearsal = false,
   academyAssisted = false;
+const DoctorPractice = {
+  read(raw, count) {
+    let data;
+    try {
+      data = JSON.parse(raw || '{}');
+    } catch {
+      return {};
+    }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+    const valid = {};
+    for (let i = 0; i < count; i++) {
+      const r = data[i];
+      if (
+        r &&
+        Number.isSafeInteger(r.attempts) &&
+        r.attempts > 0 &&
+        typeof r.needsPractice === 'boolean' &&
+        Number.isFinite(r.lastAt) &&
+        r.lastAt > 0
+      )
+        valid[i] = { attempts: r.attempts, needsPractice: r.needsPractice, lastAt: r.lastAt };
+    }
+    return valid;
+  },
+  status(records, legacy, i) {
+    return records[i]
+      ? records[i].needsPractice
+        ? 'repeat'
+        : 'done'
+      : legacy[i] === true
+        ? 'done'
+        : 'new';
+  },
+  finish(records, i, assisted, now) {
+    return {
+      ...records,
+      [i]: {
+        attempts: Math.min((records[i]?.attempts || 0) + 1, 1000000),
+        needsPractice: !!assisted,
+        lastAt: now,
+      },
+    };
+  },
+};
+let academyFilter = 'all';
+function practiceRecords() {
+  return DoctorPractice.read(localStorage.getItem('dc-practice-v1'), DoctorBook.lines.length);
+}
+function refreshPractice() {
+  const records = practiceRecords(),
+    legacy = academyProgress('dc-repertoire');
+  const states = DoctorBook.lines.map((_, i) => DoctorPractice.status(records, legacy, i));
+  const done = states.filter((x) => x === 'done').length,
+    repeat = states.filter((x) => x === 'repeat').length;
+  $('academy-meter').value = done;
+  $('practice-summary').textContent =
+    'Самостоятельно: ' + done + ' из ' + states.length + ' · повторить: ' + repeat;
+  $('academy-repeat').disabled = !repeat;
+  $('academy-next-new').disabled = states.every((x) => x === 'done');
+  document.querySelectorAll('[data-lesson]').forEach((b) => {
+    const i = Number(b.dataset.lesson),
+      state = states[i],
+      [side, title, page] = DoctorBook.lines[i];
+    b.hidden = academyFilter !== 'all' && state !== academyFilter;
+    b.querySelector('strong').textContent = title;
+    b.querySelector('span').textContent =
+      (side === 'w' ? '♔ Атака' : '♚ Защита') +
+      ' · стр. ' +
+      page +
+      ' · ' +
+      { done: '✓ Пройдено', repeat: '↻ Повторить', new: 'Не пройдено' }[state];
+  });
+  for (const filter of ['all', 'new', 'repeat'])
+    $('practice-filter-' + filter).setAttribute('aria-pressed', String(filter === academyFilter));
+}
+function nextAcademyPractice(repeatOnly = false) {
+  const records = practiceRecords(),
+    legacy = academyProgress('dc-repertoire');
+  const i = DoctorBook.lines.findIndex((_, n) =>
+    repeatOnly
+      ? DoctorPractice.status(records, legacy, n) === 'repeat'
+      : DoctorPractice.status(records, legacy, n) !== 'done'
+  );
+  if (i < 0)
+    return toast('Все варианты уже пройдены самостоятельно. Можно повторить любой из списка.');
+  academyLesson = i;
+  startAcademyRehearsal();
+  $('academy-title').scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+}
 function academyCanPlay() {
   return (
     !academySolved &&
@@ -108,6 +197,17 @@ function academyRehearseMove(from, to) {
           toast('Не удалось сохранить прогресс репетиции.');
         }
       }
+      try {
+        localStorage.setItem(
+          'dc-practice-v1',
+          JSON.stringify(
+            DoctorPractice.finish(practiceRecords(), academyLesson, academyAssisted, Date.now())
+          )
+        );
+      } catch {
+        toast('Не удалось сохранить прогресс обучения.');
+      }
+      refreshPractice();
       $('academy-answer').hidden = true;
     } else
       $('academy-feedback').textContent =
@@ -142,7 +242,7 @@ function showAcademy() {
   const progress = academyProgress(),
     completed = academyProgress('dc-repertoire');
   $('community-page').innerHTML =
-    `<div class="breadcrumbs"><a href="/">Игровая комната</a><span>/</span><span>Школа Доктора</span></div><header class="academy-heading"><span class="academy-seal">学</span><div><div class="eyebrow">DJ DOCTOR · ДЕБЮТНАЯ МАСТЕРСКАЯ</div><h1>Свой путь в центре.</h1><p>Атака Доктора за белых. Защита Доктора за чёрных.<br>Сначала понимаем план, потом двигаем фигуры.</p></div></header><div class="academy-layout"><aside class="academy-list"><h2>Дебютная тетрадь</h2><p>Линии из учебника DJ Doctor · 2026</p>${DoctorBook.lines.map(([side, title, page], i) => `<button data-lesson="${i}"><span>${side === 'w' ? '♔ Атака' : '♚ Защита'} · стр. ${page}</span><strong>${title}${completed[i] ? ' · ✓' : ''}</strong></button>`).join('')}<h2>Проверь себя</h2><p id="academy-progress">${DoctorAcademy.exercises.filter((_, i) => progress[i]).length} из ${DoctorAcademy.exercises.length} задач решено на этом устройстве</p>${DoctorAcademy.exercises.map((x, i) => `<button data-exercise="${i}"><span>ЗАДАЧА ${i + 1} ${progress[i] ? '· ✓ РЕШЕНА' : ''}</span><strong>${x.title}</strong></button>`).join('')}</aside><section class="academy-workspace"><p class="eyebrow" id="academy-label"></p><h2 id="academy-title"></h2><p id="academy-prompt"></p><div class="board-frame academy-frame"><div id="academy-board" class="chessboard" role="group" aria-label="Учебная шахматная доска"></div></div><div class="academy-controls"><button id="academy-first" aria-label="Начало учебного варианта">|‹</button><button id="academy-prev" aria-label="Предыдущий учебный ход">‹</button><span id="academy-position"></span><button id="academy-next" aria-label="Следующий учебный ход">›</button><button id="academy-last" aria-label="Конец учебного варианта">›|</button></div><p id="academy-feedback" class="academy-feedback" role="status"></p><div class="academy-buttons"><button id="academy-rehearse" class="outline">Отрепетировать вариант</button><button id="academy-train" class="primary">С доктором из этой позиции →</button><button id="academy-answer" class="outline" hidden>Показать ответ</button><button id="academy-retry" class="outline" hidden>Попробовать ещё раз</button></div><p class="academy-footnote">Необычный выход короля лишает рокировки. Это авторский учебный репертуар; при шахах и вскрытии центра конкретный расчёт важнее схемы.</p></section></div>`;
+    `<div class="breadcrumbs"><a href="/">Игровая комната</a><span>/</span><span>Школа Доктора</span></div><header class="academy-heading"><span class="academy-seal">学</span><div><div class="eyebrow">DJ DOCTOR · ДЕБЮТНАЯ МАСТЕРСКАЯ</div><h1>Свой путь в центре.</h1><p>Атака Доктора за белых. Защита Доктора за чёрных.<br>Сначала понимаем план, потом двигаем фигуры.</p></div></header><section class="practice-dashboard" aria-label="Прогресс обучения"><p class="eyebrow">ВАША ДЕБЮТНАЯ ТЕТРАДЬ</p><h2 id="practice-summary"></h2><progress id="academy-meter" max="15" value="0" aria-label="Самостоятельно пройденные варианты"></progress><div class="academy-buttons"><button id="academy-continue" class="primary">Продолжить последний вариант →</button><button id="academy-next-new" class="outline">Следующий непройденный</button><button id="academy-repeat" class="outline">Повторить с подсказками ↻</button></div><p>Прогресс хранится в этом браузере. Подсказки помогают учиться; после них вариант остаётся в списке повторения.</p></section><div class="academy-layout"><aside class="academy-list"><h2>Дебютная тетрадь</h2><div class="practice-filters" role="group" aria-label="Фильтр вариантов"><button id="practice-filter-all" aria-pressed="true">Все</button><button id="practice-filter-new" aria-pressed="false">Новые</button><button id="practice-filter-repeat" aria-pressed="false">Повторить</button></div><p>Линии из учебника DJ Doctor · 2026</p>${DoctorBook.lines.map(([side, title, page], i) => `<button data-lesson="${i}"><span>${side === 'w' ? '♔ Атака' : '♚ Защита'} · стр. ${page}</span><strong>${title}${completed[i] ? ' · ✓' : ''}</strong></button>`).join('')}<h2>Проверь себя</h2><p id="academy-progress">${DoctorAcademy.exercises.filter((_, i) => progress[i]).length} из ${DoctorAcademy.exercises.length} задач решено на этом устройстве</p>${DoctorAcademy.exercises.map((x, i) => `<button data-exercise="${i}"><span>ЗАДАЧА ${i + 1} ${progress[i] ? '· ✓ РЕШЕНА' : ''}</span><strong>${x.title}</strong></button>`).join('')}</aside><section class="academy-workspace"><p class="eyebrow" id="academy-label"></p><h2 id="academy-title"></h2><p id="academy-prompt"></p><div class="board-frame academy-frame"><div id="academy-board" class="chessboard" role="group" aria-label="Учебная шахматная доска"></div></div><div class="academy-controls"><button id="academy-first" aria-label="Начало учебного варианта">|‹</button><button id="academy-prev" aria-label="Предыдущий учебный ход">‹</button><span id="academy-position"></span><button id="academy-next" aria-label="Следующий учебный ход">›</button><button id="academy-last" aria-label="Конец учебного варианта">›|</button></div><p id="academy-feedback" class="academy-feedback" role="status"></p><div class="academy-buttons"><button id="academy-rehearse" class="outline">Отрепетировать вариант</button><button id="academy-train" class="primary">С доктором из этой позиции →</button><button id="academy-answer" class="outline" hidden>Показать ответ</button><button id="academy-retry" class="outline" hidden>Попробовать ещё раз</button></div><p class="academy-footnote">Необычный выход короля лишает рокировки. Это авторский учебный репертуар; при шахах и вскрытии центра конкретный расчёт важнее схемы.</p></section></div>`;
   academyBoard = new ChessBoardView($('academy-board'), {
     piece,
     onClick: academyPick,
@@ -193,9 +293,31 @@ function showAcademy() {
     render();
     toast('Вы играете ' + (botSide === 'w' ? 'белыми' : 'чёрными') + ' из учебной позиции.');
   };
-  loadAcademyLesson(0);
+  loadAcademyLesson(0, false);
+  academyFilter = 'all';
+  refreshPractice();
+  $('academy-next-new').onclick = () => nextAcademyPractice();
+  $('academy-repeat').onclick = () => nextAcademyPractice(true);
+  $('academy-continue').onclick = () => {
+    const saved = localStorage.getItem('dc-academy-last');
+    const i = Number(saved);
+    academyLesson =
+      saved !== null && Number.isInteger(i) && i >= 0 && i < DoctorBook.lines.length ? i : 0;
+    startAcademyRehearsal();
+    $('academy-title').scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+  };
+  for (const filter of ['all', 'new', 'repeat'])
+    $('practice-filter-' + filter).onclick = () => {
+      academyFilter = filter;
+      refreshPractice();
+    };
 }
-function loadAcademyLesson(i) {
+function loadAcademyLesson(i, remember = true) {
+  if (remember) {
+    try {
+      localStorage.setItem('dc-academy-last', String(i));
+    } catch {}
+  }
   academyLesson = i;
   academyRehearsal = false;
   const [side, title, page, pgn] = DoctorBook.lines[i];
