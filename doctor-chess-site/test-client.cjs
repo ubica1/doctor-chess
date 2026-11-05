@@ -383,6 +383,33 @@ async function appTests() {
   run("localStorage.setItem('dc-reports-v1','broken');reportIdentity='';updateGameReport()");
   assert.equal(run('reportData'), null);
   console.log('PASS: cancelled full-game analysis isolates subsequent engine requests');
+  vm.runInContext(fs.readFileSync('dist/academy.js', 'utf8'), context);
+  const delayedReplies = [],
+    previousTimeout = context.setTimeout;
+  context.setTimeout = (fn) => {
+    delayedReplies.push(fn);
+    return 1;
+  };
+  run(
+    'academyBoard={render(){}};loadAcademyLesson(0);startAcademyRehearsal();academySelected=52;academyPick(44)'
+  );
+  assert.equal(run('academyPly'), 0, 'A legal move outside the lesson does not advance it');
+  for (let i = 0; i < 20 && !run('academySolved'); i++) {
+    run('{const m=academyLine.records[academyPly];academySelected=m.from;academyPick(m.to)}');
+    while (delayedReplies.length) delayedReplies.shift()();
+  }
+  assert(run('academySolved'));
+  assert.equal(run("JSON.parse(localStorage.getItem('dc-repertoire'))[0]"), true);
+  run('loadAcademyLesson(10);startAcademyRehearsal()');
+  assert.equal(run('academyPly'), 1, 'Black repertoire starts after the first white move');
+  run('{const m=academyLine.records[academyPly];academySelected=m.from;academyPick(m.to)}');
+  run('loadAcademyExercise(0)');
+  while (delayedReplies.length) delayedReplies.shift()();
+  assert.equal(run('academyPly'), 4, 'A delayed opponent reply cannot alter a new exercise');
+  context.setTimeout = previousTimeout;
+  console.log(
+    'PASS: opening rehearsal, wrong-move retry, completion, Black side and cancelled replies'
+  );
   console.log(
     'PASS: result popup once, server confirmation, cancelled book move and stale hint isolation'
   );

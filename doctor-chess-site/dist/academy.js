@@ -53,9 +53,84 @@ let academyBoard = null,
   academyExercise = null,
   academySolved = false,
   academyFlipped = false;
-function academyProgress() {
+let academyLesson = 0,
+  academyRehearsal = false,
+  academyAssisted = false;
+function academyCanPlay() {
+  return (
+    !academySolved &&
+    (!!academyExercise ||
+      (academyRehearsal &&
+        academyLine.positions[academyPly].turn === DoctorBook.lines[academyLesson][0]))
+  );
+}
+function startAcademyRehearsal() {
+  loadAcademyLesson(academyLesson);
+  academyRehearsal = true;
+  academyAssisted = false;
+  academyFlipped = DoctorBook.lines[academyLesson][0] === 'b';
+  if (academyFlipped) academyPly = 1;
+  $('academy-prompt').textContent =
+    'Вы играете ходы Доктора из учебника. Соперник отвечает по выбранной линии. Это репетиция, а не свободная партия.';
+  $('academy-feedback').textContent = 'Ваш ход. Вспомните план.';
+  $('academy-answer').hidden = false;
+  $('academy-answer').disabled = false;
+  renderAcademy();
+}
+function academyRehearseMove(from, to) {
+  const move = academyLine.records[academyPly];
+  if (!move || move.from !== from || move.to !== to) {
+    $('academy-feedback').textContent =
+      'Допустимый ход, но в этом варианте учебника продолжение другое. Попробуйте ещё или откройте подсказку.';
+    return;
+  }
+  academyPly++;
+  const line = academyLine;
+  const finish = () => {
+    if (!academyBoard || academyLine !== line || !academyRehearsal) return;
+    if (academyPly >= line.records.length) {
+      academySolved = true;
+      $('academy-feedback').textContent = academyAssisted
+        ? 'Вариант пройден с подсказкой. Повторите самостоятельно, чтобы закрепить.'
+        : 'Весь вариант сыгран самостоятельно. Отличная работа!';
+      if (!academyAssisted) {
+        let saved;
+        try {
+          saved = JSON.parse(localStorage.getItem('dc-repertoire') || '{}');
+        } catch {
+          saved = {};
+        }
+        if (!saved || typeof saved !== 'object' || Array.isArray(saved)) saved = {};
+        saved[academyLesson] = true;
+        try {
+          localStorage.setItem('dc-repertoire', JSON.stringify(saved));
+        } catch {
+          toast('Не удалось сохранить прогресс репетиции.');
+        }
+      }
+      $('academy-answer').hidden = true;
+    } else
+      $('academy-feedback').textContent =
+        'Ответ соперника: ' + line.sans[academyPly - 1] + '. Ваш ход.';
+    renderAcademy();
+  };
+  renderAcademy();
+  if (
+    academyPly < line.records.length &&
+    line.positions[academyPly].turn !== DoctorBook.lines[academyLesson][0]
+  ) {
+    $('academy-feedback').textContent = 'Соперник отвечает…';
+    setTimeout(() => {
+      if (!academyBoard || academyLine !== line || !academyRehearsal) return;
+      academyPly++;
+      finish();
+    }, 400);
+  } else finish();
+}
+function academyProgress(key = 'dc-academy') {
   try {
-    return JSON.parse(localStorage.getItem('dc-academy') || '{}') || {};
+    const saved = JSON.parse(localStorage.getItem(key) || '{}');
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
   } catch {
     return {};
   }
@@ -64,9 +139,10 @@ function showAcademy() {
   communityShell();
   communityNav('nav-academy');
   document.title = 'Школа Доктора · Doctor Chess';
-  const progress = academyProgress();
+  const progress = academyProgress(),
+    completed = academyProgress('dc-repertoire');
   $('community-page').innerHTML =
-    `<div class="breadcrumbs"><a href="/">Игровая комната</a><span>/</span><span>Школа Доктора</span></div><header class="academy-heading"><span class="academy-seal">学</span><div><div class="eyebrow">DJ DOCTOR · ДЕБЮТНАЯ МАСТЕРСКАЯ</div><h1>Свой путь в центре.</h1><p>Атака Доктора за белых. Защита Доктора за чёрных.<br>Сначала понимаем план, потом двигаем фигуры.</p></div></header><div class="academy-layout"><aside class="academy-list"><h2>Дебютная тетрадь</h2><p>Линии из учебника DJ Doctor · 2026</p>${DoctorBook.lines.map(([side, title, page], i) => `<button data-lesson="${i}"><span>${side === 'w' ? '♔ Атака' : '♚ Защита'} · стр. ${page}</span><strong>${title}</strong></button>`).join('')}<h2>Проверь себя</h2><p id="academy-progress">${DoctorAcademy.exercises.filter((_, i) => progress[i]).length} из ${DoctorAcademy.exercises.length} задач решено на этом устройстве</p>${DoctorAcademy.exercises.map((x, i) => `<button data-exercise="${i}"><span>ЗАДАЧА ${i + 1} ${progress[i] ? '· ✓ РЕШЕНА' : ''}</span><strong>${x.title}</strong></button>`).join('')}</aside><section class="academy-workspace"><p class="eyebrow" id="academy-label"></p><h2 id="academy-title"></h2><p id="academy-prompt"></p><div class="board-frame academy-frame"><div id="academy-board" class="chessboard" role="group" aria-label="Учебная шахматная доска"></div></div><div class="academy-controls"><button id="academy-first" aria-label="Начало учебного варианта">|‹</button><button id="academy-prev" aria-label="Предыдущий учебный ход">‹</button><span id="academy-position"></span><button id="academy-next" aria-label="Следующий учебный ход">›</button><button id="academy-last" aria-label="Конец учебного варианта">›|</button></div><p id="academy-feedback" class="academy-feedback" role="status"></p><div class="academy-buttons"><button id="academy-train" class="primary">С доктором из этой позиции →</button><button id="academy-answer" class="outline" hidden>Показать ответ</button><button id="academy-retry" class="outline" hidden>Попробовать ещё раз</button></div><p class="academy-footnote">Необычный выход короля лишает рокировки. Это авторский учебный репертуар; при шахах и вскрытии центра конкретный расчёт важнее схемы.</p></section></div>`;
+    `<div class="breadcrumbs"><a href="/">Игровая комната</a><span>/</span><span>Школа Доктора</span></div><header class="academy-heading"><span class="academy-seal">学</span><div><div class="eyebrow">DJ DOCTOR · ДЕБЮТНАЯ МАСТЕРСКАЯ</div><h1>Свой путь в центре.</h1><p>Атака Доктора за белых. Защита Доктора за чёрных.<br>Сначала понимаем план, потом двигаем фигуры.</p></div></header><div class="academy-layout"><aside class="academy-list"><h2>Дебютная тетрадь</h2><p>Линии из учебника DJ Doctor · 2026</p>${DoctorBook.lines.map(([side, title, page], i) => `<button data-lesson="${i}"><span>${side === 'w' ? '♔ Атака' : '♚ Защита'} · стр. ${page}</span><strong>${title}${completed[i] ? ' · ✓' : ''}</strong></button>`).join('')}<h2>Проверь себя</h2><p id="academy-progress">${DoctorAcademy.exercises.filter((_, i) => progress[i]).length} из ${DoctorAcademy.exercises.length} задач решено на этом устройстве</p>${DoctorAcademy.exercises.map((x, i) => `<button data-exercise="${i}"><span>ЗАДАЧА ${i + 1} ${progress[i] ? '· ✓ РЕШЕНА' : ''}</span><strong>${x.title}</strong></button>`).join('')}</aside><section class="academy-workspace"><p class="eyebrow" id="academy-label"></p><h2 id="academy-title"></h2><p id="academy-prompt"></p><div class="board-frame academy-frame"><div id="academy-board" class="chessboard" role="group" aria-label="Учебная шахматная доска"></div></div><div class="academy-controls"><button id="academy-first" aria-label="Начало учебного варианта">|‹</button><button id="academy-prev" aria-label="Предыдущий учебный ход">‹</button><span id="academy-position"></span><button id="academy-next" aria-label="Следующий учебный ход">›</button><button id="academy-last" aria-label="Конец учебного варианта">›|</button></div><p id="academy-feedback" class="academy-feedback" role="status"></p><div class="academy-buttons"><button id="academy-rehearse" class="outline">Отрепетировать вариант</button><button id="academy-train" class="primary">С доктором из этой позиции →</button><button id="academy-answer" class="outline" hidden>Показать ответ</button><button id="academy-retry" class="outline" hidden>Попробовать ещё раз</button></div><p class="academy-footnote">Необычный выход короля лишает рокировки. Это авторский учебный репертуар; при шахах и вскрытии центра конкретный расчёт важнее схемы.</p></section></div>`;
   academyBoard = new ChessBoardView($('academy-board'), {
     piece,
     onClick: academyPick,
@@ -75,8 +151,7 @@ function showAcademy() {
       renderAcademy();
     },
     canDrag: (i) =>
-      !!academyExercise &&
-      !academySolved &&
+      academyCanPlay() &&
       color(academyLine.positions[academyPly].b[i]) === academyLine.positions[academyPly].turn,
     onDrop: (i, j) => {
       academySelected = i;
@@ -94,6 +169,12 @@ function showAcademy() {
   $('academy-next').onclick = () => academyStep(academyPly + 1);
   $('academy-last').onclick = () => academyStep(academyLine.records.length);
   $('academy-answer').onclick = () => {
+    if (academyRehearsal) {
+      if (!academyCanPlay()) return;
+      academyAssisted = true;
+      $('academy-feedback').textContent = 'По учебнику: ' + academyLine.sans[academyPly];
+      return;
+    }
     $('academy-feedback').textContent =
       'Ответ: ' + academyExercise.answer + '. ' + academyExercise.explanation;
     $('academy-answer').disabled = true;
@@ -115,6 +196,8 @@ function showAcademy() {
   loadAcademyLesson(0);
 }
 function loadAcademyLesson(i) {
+  academyLesson = i;
+  academyRehearsal = false;
   const [side, title, page, pgn] = DoctorBook.lines[i];
   academyExercise = null;
   academyFlipped = false;
@@ -133,6 +216,7 @@ function loadAcademyLesson(i) {
   renderAcademy();
 }
 function loadAcademyExercise(i) {
+  academyRehearsal = false;
   academyExercise = DoctorAcademy.exercises[i];
   academyLine = ChessNotation.fromPGN(academyExercise.pgn + ' *');
   academyPly = academyLine.records.length;
@@ -150,7 +234,7 @@ function loadAcademyExercise(i) {
   renderAcademy();
 }
 function academyStep(n) {
-  if (academyExercise) return;
+  if (academyExercise || academyRehearsal) return;
   academyPly = Math.max(0, Math.min(n, academyLine.records.length));
   academySelected = -1;
   renderAcademy();
@@ -162,7 +246,7 @@ function renderAcademy() {
     state,
     academyFlipped,
     academySelected,
-    academySelected >= 0 && academyExercise ? legal(state, academySelected) : [],
+    academySelected >= 0 && academyCanPlay() ? legal(state, academySelected) : [],
     record ? [record.from, record.to] : [],
     check(state, state.turn) ? state.b.indexOf(state.turn === 'w' ? 'K' : 'k') : -1
   );
@@ -175,15 +259,31 @@ function renderAcademy() {
       academyLine.records.length +
       (academyPly ? ' · ' + academyLine.sans[academyPly - 1] : ' · Старт');
   for (const id of ['academy-first', 'academy-prev'])
-    $(id).disabled = !!academyExercise || academyPly === 0;
+    $(id).disabled = !!academyExercise || academyRehearsal || academyPly === 0;
   for (const id of ['academy-next', 'academy-last'])
-    $(id).disabled = !!academyExercise || academyPly === academyLine.records.length;
+    $(id).disabled =
+      !!academyExercise || academyRehearsal || academyPly === academyLine.records.length;
+  $('academy-rehearse').hidden = !!academyExercise;
+  $('academy-rehearse').textContent = academyRehearsal
+    ? academySolved
+      ? 'Повторить вариант'
+      : 'Вернуться к просмотру'
+    : 'Отрепетировать вариант';
+  $('academy-rehearse').onclick = () =>
+    academyRehearsal && !academySolved ? loadAcademyLesson(academyLesson) : startAcademyRehearsal();
+  $('academy-train').disabled = academyRehearsal && !academySolved && !academyCanPlay();
 }
 function academyPick(to) {
-  if (!academyExercise || academySolved) return;
+  if (!academyCanPlay()) return;
   const state = academyLine.positions[academyPly],
     from = academySelected;
   if (from >= 0 && legal(state, from).includes(to)) {
+    if (academyRehearsal) {
+      academySelected = -1;
+      academyRehearseMove(from, to);
+      renderAcademy();
+      return;
+    }
     const answer = ChessNotation.san(state, { from, to, promotion: 'q' });
     academySelected = -1;
     if (answer === academyExercise.answer) {

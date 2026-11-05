@@ -1936,3 +1936,8 @@ textarea {
 .academy-controls button:disabled {
   opacity: 0.4;
 }
+
+/* Keep lesson controls reachable on laptop screens shorter than the study board. */
+.academy-workspace {
+  position: static;
+}
