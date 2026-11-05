@@ -26,7 +26,8 @@ def call(c, path, data=None):
         with c.open(req) as r:
             return r.status, json.load(r)
     except urllib.error.HTTPError as e:
-        return e.code, json.load(e)
+        with e:
+            return e.code, json.load(e)
 
 
 class Integration(unittest.TestCase):
@@ -398,6 +399,241 @@ class SocialGames(unittest.TestCase):
                 ).fetchone()[0],
                 1,
             )
+
+
+class ReviewRegressions(unittest.TestCase):
+    def setUp(self):
+        with server.lock:
+            server.failures.clear()
+        self.white, self.black = client(), client()
+        self.ids = []
+        for c in (self.white, self.black):
+            name = "Review" + server.secrets.token_hex(5)
+            code, body = call(
+                c, "register", {"username": name, "password": "test-pass-123"}
+            )
+            self.assertEqual(code, 200)
+            self.ids.append(body["user"]["id"])
+
+    def game(self, board=None, seconds=180, elapsed=0, kind="rated"):
+        with server.lock:
+            g = server.club.new_game(*self.ids, "3+0", kind)
+            p = g["payload"]
+            if board:
+                p["state"]["b"] = [None] * 64
+                p["state"]["rights"] = ""
+                for square, piece in board.items():
+                    p["state"]["b"][square] = piece
+            p["clocks"]["w"] = seconds
+            p["tick"] = time.time() - elapsed
+            server.db.execute(
+                "UPDATE games SET payload=? WHERE id=?", (json.dumps(p), g["id"])
+            )
+            return g["id"]
+
+    def test_clock_at_request_receipt_and_stable_completion(self):
+        from unittest.mock import patch
+
+        original = server.subprocess.run
+
+        def slow(*args, **kwargs):
+            time.sleep(0.5)
+            return original(*args, **kwargs)
+
+        gid = self.game({60: "K", 56: "R", 4: "k"}, seconds=0.3)
+        with patch.object(server.subprocess, "run", side_effect=slow):
+            code, body = call(self.white, "move", {"game": gid, "from": 56, "to": 48})
+        self.assertEqual(code, 200, body)
+        self.assertIsNone(body["game"]["result"])
+        self.assertGreater(body["game"]["clocks"]["w"], 0)
+        self.assertEqual(len(body["game"]["moves"]), 1)
+        gid = self.game({60: "K", 56: "R", 4: "k"}, seconds=0.01, elapsed=1)
+        body = call(self.white, "move", {"game": gid, "from": 56, "to": 48})[1]["game"]
+        self.assertEqual(body["result"], "draw")
+        self.assertEqual(body["clocks"]["w"], 0)
+        self.assertEqual(body["moves"], [])
+        before = call(self.white, "me")[1]["user"]["ratings"]
+        call(self.white, "resign", {"game": gid})
+        self.assertEqual(call(self.white, "me")[1]["user"]["ratings"], before)
+
+    def test_timeout_material_and_old_dead_positions(self):
+        # Winner is black; enemy material can permit a mating net.
+        cases = [
+            ({60: "K", 4: "k", 0: "r"}, "b"),
+            ({60: "K", 4: "k", 2: "b"}, "draw"),
+            ({60: "K", 4: "k", 1: "n"}, "draw"),
+            ({60: "K", 48: "P", 4: "k", 2: "b"}, "b"),
+            ({60: "K", 56: "R", 4: "k", 1: "n"}, "b"),
+            ({60: "K", 61: "B", 4: "k", 2: "b"}, "draw"),
+            ({60: "K", 58: "B", 4: "k", 2: "b"}, "b"),
+        ]
+        for board, result in cases:
+            with self.subTest(board=board):
+                gid = self.game(board, seconds=1, elapsed=2)
+                g = call(self.white, "resign", {"game": gid})[1]["game"]
+                self.assertEqual(g["result"], result)
+                self.assertEqual(g["reason"], "Время вышло")
+                self.assertEqual(g["clocks"]["w"], 0)
+        gid = self.game({60: "K", 4: "k", 2: "b"})
+        g = call(self.white, "state")[1]["game"]
+        self.assertEqual(g["id"], gid)
+        self.assertEqual(g["result"], "draw")
+
+    def test_resign_draw_clocks_persist_for_rated_and_casual(self):
+        for kind in ("rated", "casual"):
+            for action in ("resign", "draw"):
+                gid = self.game(elapsed=10, kind=kind)
+                if action == "draw":
+                    call(self.black, "draw", {"game": gid})
+                g = call(self.white, action, {"game": gid})[1]["game"]
+                self.assertAlmostEqual(g["clocks"]["w"], 170, delta=0.5)
+                self.assertEqual(
+                    call(self.white, "state")[1]["game"]["clocks"], g["clocks"]
+                )
+                with server.lock:
+                    payload = json.loads(
+                        server.db.execute(
+                            "SELECT payload FROM games WHERE id=?", (gid,)
+                        ).fetchone()[0]
+                    )
+                self.assertEqual(payload["clocks"], g["clocks"])
+
+    def test_unicode_identity_and_typed_fields(self):
+        from urllib.parse import quote
+
+        c = client()
+        self.assertEqual(
+            call(c, "register", {"username": "Шахматист", "password": "  pass-123  "})[
+                0
+            ],
+            200,
+        )
+        self.assertEqual(
+            call(
+                client(), "login", {"username": "шахматист", "password": "  pass-123  "}
+            )[0],
+            200,
+        )
+        self.assertEqual(
+            call(
+                client(), "register", {"username": "ШАХМАТИСТ", "password": "password1"}
+            )[0],
+            409,
+        )
+        self.assertEqual(
+            call(c, "players/" + quote("шахматист"))[1]["player"]["username"],
+            "Шахматист",
+        )
+        self.assertEqual(
+            call(c, "players?search=" + quote("шахматист"))[1]["players"][0][
+                "username"
+            ],
+            "Шахматист",
+        )
+        for value in (None, True, 12345678, [], {}):
+            for route, fields in (
+                ("register", ("username", "password")),
+                ("login", ("username", "password")),
+                ("profile", ("bio", "avatar")),
+            ):
+                for field in fields:
+                    with self.subTest(route=route, field=field, value=value):
+                        with server.lock:
+                            server.failures.clear()
+                            before = [
+                                server.db.execute(
+                                    "SELECT COUNT(*) FROM " + table
+                                ).fetchone()[0]
+                                for table in ("users", "sessions")
+                            ]
+                        original_profile = call(c, "me")[1]["user"]
+                        data = (
+                            {"username": "TypedName", "password": "password1"}
+                            if route != "profile"
+                            else {"bio": "old", "avatar": "crane"}
+                        )
+                        data[field] = value
+                        self.assertEqual(call(c, route, data)[0], 400)
+                        self.assertEqual(call(c, "me")[1]["user"], original_profile)
+                        with server.lock:
+                            self.assertEqual(
+                                [
+                                    server.db.execute(
+                                        "SELECT COUNT(*) FROM " + table
+                                    ).fetchone()[0]
+                                    for table in ("users", "sessions")
+                                ],
+                                before,
+                            )
+
+    def test_hosted_origin_and_secure_cookie(self):
+        from unittest.mock import patch
+
+        with patch.object(
+            server, "PUBLIC_ORIGIN", "https://chess.example.com"
+        ), patch.object(server, "COOKIE_SECURE", "; Secure"):
+            body = json.dumps(
+                {
+                    "username": "Proxy" + server.secrets.token_hex(4),
+                    "password": "test-password",
+                }
+            ).encode()
+            request = urllib.request.Request(
+                BASE + "/api/register",
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Origin": "https://chess.example.com",
+                },
+            )
+            with urllib.request.urlopen(request) as response:
+                self.assertEqual(response.status, 200)
+                self.assertIn("; Secure", response.headers["Set-Cookie"])
+            self.assertEqual(
+                call(self.white, "profile", {"bio": "wrong origin"})[0], 403
+            )
+            with urllib.request.urlopen(BASE + "/healthz") as response:
+                self.assertEqual(json.load(response), {"ok": True})
+
+    def test_unicode_migration_backup_conflict_and_retry(self):
+        import sqlite3
+        from contextlib import closing
+        from identity import migrate_names
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "legacy.sqlite3"
+            db = sqlite3.connect(path, isolation_level=None)
+            try:
+                db.execute("CREATE TABLE users(id TEXT,username TEXT)")
+                db.executemany(
+                    "INSERT INTO users VALUES(?,?)",
+                    [("a", "Шахматист"), ("b", "шахматист")],
+                )
+                with self.assertRaisesRegex(RuntimeError, "Конфликт"):
+                    migrate_names(db, path)
+                self.assertNotIn(
+                    "username_key",
+                    [r[1] for r in db.execute("PRAGMA table_info(users)")],
+                )
+                db.execute("UPDATE users SET username='Other' WHERE id='b'")
+                migrate_names(db, path)
+                migrate_names(db, path)
+                self.assertEqual(
+                    list(db.execute("SELECT id,username_key FROM users ORDER BY id")),
+                    [("a", "шахматист"), ("b", "other")],
+                )
+                backups = list(Path(tmp).glob("*.before-unicode-*.sqlite3"))
+                self.assertEqual(len(backups), 1)
+                with closing(sqlite3.connect(backups[0])) as backup:
+                    self.assertEqual(
+                        backup.execute("SELECT COUNT(*) FROM users").fetchone()[0], 2
+                    )
+                    self.assertNotIn(
+                        "username_key",
+                        [r[1] for r in backup.execute("PRAGMA table_info(users)")],
+                    )
+            finally:
+                db.close()
 
 
 def tearDownModule():

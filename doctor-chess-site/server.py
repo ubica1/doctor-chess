@@ -4,8 +4,26 @@ from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse, parse_qs, unquote
 from social import ClubGames, ClubError
+from identity import name_key, migrate_names
+from game_clock import settle_clock, insufficient_for_side
 
 BASE = Path(__file__).resolve().parent
+PUBLIC_ORIGIN = os.environ.get("DOCTOR_CHESS_PUBLIC_ORIGIN", "").rstrip("/")
+if PUBLIC_ORIGIN:
+    public_url = urlparse(PUBLIC_ORIGIN)
+    if (
+        public_url.scheme != "https"
+        or not public_url.netloc
+        or public_url.path
+        or public_url.query
+        or public_url.fragment
+        or public_url.username
+        or public_url.password
+    ):
+        raise ValueError(
+            "DOCTOR_CHESS_PUBLIC_ORIGIN must be an HTTPS origin without a path"
+        )
+COOKIE_SECURE = "; Secure" if PUBLIC_ORIGIN else ""
 DB = Path(os.environ.get("DOCTOR_CHESS_DB", str(BASE / "data" / "chess.sqlite3")))
 DB.parent.mkdir(parents=True, exist_ok=True)
 db = sqlite3.connect(DB, check_same_thread=False, isolation_level=None)
@@ -20,6 +38,7 @@ CREATE TABLE IF NOT EXISTS queue(user_id TEXT PRIMARY KEY,control TEXT,touched R
 """)
 if "avatar" not in [r[1] for r in db.execute("PRAGMA table_info(users)")]:
     db.execute("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT 'crane'")
+migrate_names(db, DB)
 CONTROLS = {
     "1+0": ("bullet", 60, 0),
     "3+0": ("blitz", 180, 0),
@@ -67,7 +86,9 @@ def readable_reason(value):
 
 
 def public_profile(username, page=1, category="all"):
-    row = db.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    row = db.execute(
+        "SELECT id FROM users WHERE username_key=?", (name_key(username),)
+    ).fetchone()
     if not row:
         return None
     uid = row["id"]
@@ -133,15 +154,25 @@ def public_profile(username, page=1, category="all"):
     return out
 
 
-def finish(g, result, reason):
+def finish(g, result, reason, now=None):
     if g["result"]:
         return
+    expired = settle_clock(g["payload"], time.time() if now is None else now)
+    if expired:
+        winner = "b" if g["payload"]["state"]["turn"] == "w" else "w"
+        result = (
+            "draw" if insufficient_for_side(g["payload"]["state"], winner) else winner
+        )
+        reason = "Время вышло"
     db.execute("BEGIN IMMEDIATE")
     try:
-        db.execute(
+        changed = db.execute(
             "UPDATE games SET result=?,reason=? WHERE id=? AND result IS NULL",
             (result, reason, g["id"]),
         )
+        if not changed.rowcount:
+            db.execute("ROLLBACK")
+            return
         if g.get("kind", "rated") == "rated":
             a = db.execute(
                 "SELECT rating FROM ratings WHERE user_id=? AND category=?",
@@ -165,10 +196,10 @@ def finish(g, result, reason):
                     "UPDATE ratings SET rating=rating+?,played=played+1,wins=wins+? WHERE user_id=? AND category=?",
                     (d, int(win), uid, g["category"]),
                 )
-            db.execute(
-                "UPDATE games SET payload=? WHERE id=?",
-                (json.dumps(g["payload"]), g["id"]),
-            )
+        db.execute(
+            "UPDATE games SET payload=? WHERE id=?",
+            (json.dumps(g["payload"]), g["id"]),
+        )
         db.execute("COMMIT")
     except:
         db.execute("ROLLBACK")
@@ -177,7 +208,7 @@ def finish(g, result, reason):
     g["reason"] = reason
 
 
-def game_row(gid):
+def game_row(gid, now=None):
     row = db.execute("SELECT * FROM games WHERE id=?", (gid,)).fetchone()
     if not row:
         return None
@@ -185,21 +216,11 @@ def game_row(gid):
     g["reason"] = readable_reason(g["reason"])
     g["payload"] = json.loads(g["payload"])
     p = g["payload"]
-    if (
-        not g["result"]
-        and p["clocks"][p["state"]["turn"]] - (time.time() - p["tick"]) <= 0
-    ):
-        loser = p["state"]["turn"]
-        winner = "b" if loser == "w" else "w"
-        # A bare king cannot win on time.
-        pieces = [
-            x
-            for x in p["state"]["b"]
-            if x and (x.isupper() if winner == "w" else x.islower())
-        ]
-        p["clocks"][loser] = 0
-        db.execute("UPDATE games SET payload=? WHERE id=?", (json.dumps(p), g["id"]))
-        finish(g, "draw" if len(pieces) == 1 else winner, "Время вышло")
+    now = time.time() if now is None else now
+    if not g["result"]:
+        dead = all(insufficient_for_side(p["state"], side) for side in ("w", "b"))
+        if dead or p["clocks"][p["state"]["turn"]] <= max(0, now - p["tick"]):
+            finish(g, "draw", "Ничья — недостаточно материала.", now)
     return g
 
 
@@ -236,6 +257,7 @@ club = ClubGames(db, CONTROLS, INITIAL, profile, game_row, public_game)
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
+        self.timeout = 15
         super().__init__(*args, directory=str(BASE / "dist"), **kwargs)
 
     def log_message(self, *args):
@@ -272,9 +294,13 @@ class Handler(SimpleHTTPRequestHandler):
             "INSERT INTO sessions VALUES(?,?,?)",
             (hashlib.sha256(token.encode()).hexdigest(), uid, time.time() + 86400 * 30),
         )
-        return f"dc_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000"
+        return f"dc_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000{COOKIE_SECURE}"
 
     def do_GET(self):
+        if self.path == "/healthz":
+            with lock:
+                db.execute("SELECT 1").fetchone()
+            return self.reply({"ok": True})
         if (
             self.path.startswith("/player/")
             or self.path.startswith("/review/")
@@ -341,8 +367,8 @@ class Handler(SimpleHTTPRequestHandler):
                     players = [
                         dict(r)
                         for r in db.execute(
-                            "SELECT u.username,u.avatar,u.created,MAX(r.rating) AS rating,SUM(r.played) AS played FROM users u JOIN ratings r ON r.user_id=u.id WHERE instr(lower(u.username),lower(?))>0 GROUP BY u.id ORDER BY u.created DESC LIMIT 50",
-                            (search,),
+                            "SELECT u.username,u.avatar,u.created,MAX(r.rating) AS rating,SUM(r.played) AS played FROM users u JOIN ratings r ON r.user_id=u.id WHERE instr(u.username_key,?)>0 GROUP BY u.id ORDER BY u.created DESC LIMIT 50",
+                            (name_key(search),),
                         )
                     ]
                     return self.reply({"players": players})
@@ -399,7 +425,10 @@ class Handler(SimpleHTTPRequestHandler):
         # Only same-origin browser requests may mutate authenticated state.
         origin = self.headers.get("Origin")
         host = self.headers.get("Host", "")
-        if origin and origin not in ("http://" + host, "https://" + host):
+        allowed_origins = (
+            (PUBLIC_ORIGIN,) if PUBLIC_ORIGIN else ("http://" + host, "https://" + host)
+        )
+        if origin and origin not in allowed_origins:
             return self.reply({"error": "Недопустимый источник запроса"}, 403)
         try:
             size = int(self.headers.get("Content-Length", "0"))
@@ -410,6 +439,7 @@ class Handler(SimpleHTTPRequestHandler):
             x = json.loads(self.rfile.read(size) or b"{}")
             if not isinstance(x, dict):
                 raise ValueError()
+            self.received_at = time.time()
         except:
             return self.reply({"error": "Некорректный запрос"}, 400)
         with lock:
@@ -436,19 +466,24 @@ class Handler(SimpleHTTPRequestHandler):
                     {"error": "Слишком много попыток. Подождите минуту."}, 429
                 )
             attempts.append(now)
-            username = str(x.get("username", "")).strip()
-            password = str(x.get("password", ""))
+            username = x.get("username", "")
+            password = x.get("password", "")
+            if not isinstance(username, str) or not isinstance(password, str):
+                return self.reply({"error": "Имя и пароль должны быть строками"}, 400)
+            username = username.strip()
             if (
                 not re.fullmatch(r"[\w-]{3,24}", username)
                 or not 8 <= len(password) <= 128
             ):
                 return self.reply(
-                    {"error": "Имя: 3–24 буквы, цифры или _. Пароль: 8–128 символов."},
+                    {
+                        "error": "Имя: 3–24 буквы, цифры, _ или -. Пароль: 8–128 символов."
+                    },
                     400,
                 )
             if route == "/api/register":
                 if db.execute(
-                    "SELECT 1 FROM users WHERE username=?", (username,)
+                    "SELECT 1 FROM users WHERE username_key=?", (name_key(username),)
                 ).fetchone():
                     return self.reply({"error": "Это имя уже занято"}, 409)
                 uid = secrets.token_hex(12)
@@ -457,8 +492,8 @@ class Handler(SimpleHTTPRequestHandler):
                     "sha256", password.encode(), bytes.fromhex(salt), 310000
                 ).hex()
                 db.execute(
-                    "INSERT INTO users(id,username,password,salt,created) VALUES(?,?,?,?,?)",
-                    (uid, username, hashed, salt, now),
+                    "INSERT INTO users(id,username,username_key,password,salt,created) VALUES(?,?,?,?,?,?)",
+                    (uid, username, name_key(username), hashed, salt, now),
                 )
                 for cat in ["bullet", "blitz", "rapid", "classical"]:
                     db.execute(
@@ -466,7 +501,7 @@ class Handler(SimpleHTTPRequestHandler):
                     )
             else:
                 u = db.execute(
-                    "SELECT * FROM users WHERE username=?", (username,)
+                    "SELECT * FROM users WHERE username_key=?", (name_key(username),)
                 ).fetchone()
                 salt = u["salt"] if u else "00" * 16
                 hashed = hashlib.pbkdf2_hmac(
@@ -502,11 +537,24 @@ class Handler(SimpleHTTPRequestHandler):
             db.execute("DELETE FROM queue WHERE user_id=?", (uid,))
             return self.reply(
                 {"ok": True},
-                cookie="dc_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+                cookie="dc_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
+                + COOKIE_SECURE,
             )
         if route == "/api/profile":
-            bio = str(x.get("bio", "")).strip()[:240]
+            bio = x.get("bio", profile(uid)["bio"])
             avatar = x.get("avatar", profile(uid)["avatar"])
+            if (
+                not isinstance(bio, str)
+                or not isinstance(avatar, str)
+                or len(bio) > 240
+            ):
+                return self.reply(
+                    {
+                        "error": "Описание и эмблема должны быть строками; описание — до 240 символов"
+                    },
+                    400,
+                )
+            bio = bio.strip()
             if avatar not in ["crane", "dragon", "bamboo", "mountain"]:
                 return self.reply({"error": "Выберите эмблему из списка"}, 400)
             db.execute("UPDATE users SET bio=?,avatar=? WHERE id=?", (bio, avatar, uid))
@@ -542,7 +590,8 @@ class Handler(SimpleHTTPRequestHandler):
             game = club.new_game(white, black, control)
             return self.reply({"game": public_game(game, uid)})
         if route in ["/api/move", "/api/resign", "/api/draw", "/api/draw-decline"]:
-            g = game_row(str(x.get("game", "")))
+            received = self.received_at
+            g = game_row(str(x.get("game", "")), received)
             if not g or uid not in [g["white"], g["black"]]:
                 return self.reply({"error": "Партия не найдена"}, 404)
             if g["result"]:
@@ -550,7 +599,7 @@ class Handler(SimpleHTTPRequestHandler):
             side = "w" if uid == g["white"] else "b"
             p = g["payload"]
             if route == "/api/resign":
-                finish(g, "b" if side == "w" else "w", "Соперник сдался")
+                finish(g, "b" if side == "w" else "w", "Соперник сдался", received)
             elif route == "/api/draw-decline":
                 p["offer"] = None
                 db.execute(
@@ -558,7 +607,7 @@ class Handler(SimpleHTTPRequestHandler):
                 )
             elif route == "/api/draw":
                 if p.get("offer") and p["offer"] != side:
-                    finish(g, "draw", "Ничья по соглашению")
+                    finish(g, "draw", "Ничья по соглашению", received)
                 else:
                     p["offer"] = side
                     db.execute(
@@ -588,10 +637,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if out.get("error"):
                     return self.reply({"error": out["error"]}, 400)
                 now = time.time()
-                p["clocks"][side] -= now - p["tick"]
-                if p["clocks"][side] <= 0:
-                    finish(g, "b" if side == "w" else "w", "Время вышло")
-                    return self.reply({"game": public_game(g, uid)})
+                settle_clock(p, received)
                 p["clocks"][side] += CONTROLS[g["control"]][2]
                 p["tick"] = now
                 p["history"].append(p["state"])
@@ -610,12 +656,13 @@ class Handler(SimpleHTTPRequestHandler):
                     "UPDATE games SET payload=? WHERE id=?", (json.dumps(p), g["id"])
                 )
                 if out.get("result"):
-                    finish(g, out["result"], out["message"])
+                    finish(g, out["result"], out["message"], now)
             return self.reply({"game": public_game(g, uid)})
         return self.reply({"error": "Не найдено"}, 404)
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "4173"))
-    print(f"Doctor Chess: http://localhost:{port}", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    host = os.environ.get("DOCTOR_CHESS_HOST", "127.0.0.1")
+    print(f"Doctor Chess: {PUBLIC_ORIGIN or f'http://{host}:{port}'}", flush=True)
+    ThreadingHTTPServer((host, port), Handler).serve_forever()

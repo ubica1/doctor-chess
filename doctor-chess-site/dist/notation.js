@@ -311,7 +311,11 @@ const ChessNotation = (() => {
       let m = possible[0];
       if (/^[a-h][1-8][a-h][1-8][qrbnQRBN]?$/.test(normalized))
         m = candidates.find(
-          (m) => E.color(state.b[m.from]) === state.turn && E.legal(state, m.from).includes(m.to)
+          (m) =>
+            E.color(state.b[m.from]) === state.turn &&
+            E.legal(state, m.from).includes(m.to) &&
+            (normalized.length === 4 ||
+              (state.b[m.from].toLowerCase() === 'p' && (m.to < 8 || m.to >= 56)))
         );
       if (!m || possible.length > 1)
         throw Error(
