@@ -3,7 +3,16 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const nodes = new Map();
 const node = (id) => {
-  if (!nodes.has(id)) nodes.set(id, { classList: { add() {}, remove() {} } });
+  if (!nodes.has(id)) {
+    const classes = new Set();
+    nodes.set(id, {
+      classList: {
+        add: (...names) => names.forEach((name) => classes.add(name)),
+        remove: (...names) => names.forEach((name) => classes.delete(name)),
+        contains: (name) => classes.has(name),
+      },
+    });
+  }
   return nodes.get(id);
 };
 const location = { pathname: '/' };
@@ -17,7 +26,11 @@ const context = vm.createContext({
         location.pathname = path;
       },
     },
-    scrollTo() {},
+    scrollTo(x, y) {
+      if (typeof x === 'object') throw new TypeError('Unsupported ScrollBehavior');
+      assert.equal(x, 0);
+      assert.equal(y, 0);
+    },
   },
   document: {},
   $: node,
@@ -79,8 +92,33 @@ const run = (code) => vm.runInContext(code, context);
   const count = pushes.length;
   run('openPracticeRoom()');
   assert.equal(pushes.length, count, 'resetting a practice game keeps the same URL');
+  context.window.scrollTo = () => {
+    throw new TypeError('Scroll unavailable');
+  };
+  location.pathname = '/';
+  node('game-page').classList.add('lobby');
+  run('syncGameRoute(next, null)');
+  assert.equal(location.pathname, '/game/abc123');
+  assert(
+    node('game-page').classList.contains('game-room'),
+    'scroll failure must not block the board'
+  );
+  // A match already stored in memory still needs its screen repaired after a failed transition.
+  node('game-page').classList.add('lobby');
+  node('game-page').hidden = true;
+  const beforeRecovery = pushes.length;
+  run('syncGameRoute(next, next)');
+  assert.equal(node('game-page').hidden, false);
+  assert.equal(node('game-page').classList.contains('lobby'), false);
+  assert.equal(pushes.length, beforeRecovery);
+  location.pathname = '/';
+  node('game-page').classList.add('lobby');
+  run('syncGameRoute(next, next)');
+  assert.equal(location.pathname, '/', 'deliberately returning home must not reopen the match');
+  run('openPracticeRoom()');
+  assert.equal(location.pathname, '/play/local', 'scroll failure must not block practice either');
   console.log(
-    'PASS: game URLs, participant restoration, navigation isolation and practice history'
+    'PASS: game URLs, participant restoration, navigation isolation, scroll failure and room recovery'
   );
 })().catch((error) => {
   console.error(error);

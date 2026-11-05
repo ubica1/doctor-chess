@@ -23,7 +23,7 @@ function navigate(path) {
   if ($('modal').open) $('modal').close();
   if (location.pathname + location.search !== path) window.history.pushState({}, '', path);
   routePage();
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  scrollRoomToTop();
 }
 function openPlayer(username) {
   navigate(profilePath(username));

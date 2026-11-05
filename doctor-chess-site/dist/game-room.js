@@ -1,6 +1,12 @@
 /* Stable URLs for private live games; practice remains local to this browser. */
 let roomGeneration = 0,
   roomLoading = false;
+function scrollRoomToTop() {
+  // Scrolling is cosmetic: it must never interrupt accepting a match.
+  try {
+    window.scrollTo(0, 0);
+  } catch {}
+}
 function gameRoute() {
   return typeof location === 'undefined'
     ? null
@@ -19,17 +25,21 @@ function displayRoom(label) {
   document.title = label + ' · Doctor Chess';
 }
 function syncGameRoute(next, previous) {
-  if (
-    typeof location === 'undefined' ||
-    roomLoading ||
-    next.result ||
-    (previous && previous.id === next.id)
-  )
+  if (typeof location === 'undefined' || roomLoading || next.result) return;
+  if (previous && previous.id === next.id) {
+    if (
+      gameRoute() === next.id &&
+      ($('game-page').hidden || $('game-page').classList.contains('lobby'))
+    ) {
+      displayRoom('Партия ' + next.id.slice(0, 8) + ' · ' + next.control);
+      render();
+    }
     return;
+  }
   if (location.pathname !== '/' && !gameRoute()) return;
   window.history.pushState({}, '', '/game/' + next.id);
-  window.scrollTo({ top: 0, behavior: 'instant' });
   displayRoom('Партия ' + next.id.slice(0, 8) + ' · ' + next.control);
+  scrollRoomToTop();
 }
 async function loadGameRoom(id) {
   const generation = roomGeneration;
@@ -68,7 +78,6 @@ function openPracticeRoom() {
   )
     return;
   if (location.pathname !== '/play/' + mode) window.history.pushState({}, '', '/play/' + mode);
-  window.scrollTo({ top: 0, behavior: 'instant' });
   displayRoom(
     mode === 'computer'
       ? 'За столом с DJ Doctor'
@@ -78,4 +87,5 @@ function openPracticeRoom() {
           ? 'Разминка для ума'
           : 'Домашняя партия'
   );
+  scrollRoomToTop();
 }
