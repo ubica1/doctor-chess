@@ -19,6 +19,7 @@ const checks = [
   'test-client.cjs',
   'test-room.cjs',
   'test-live.cjs',
+  'test-watching.cjs',
   'test-notebook.cjs',
   'test-workshop-ui.cjs',
   'test-doctor.cjs',

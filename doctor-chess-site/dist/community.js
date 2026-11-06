@@ -35,6 +35,7 @@ function communityNav(which) {
 }
 async function routePage() {
   closeLearningPages();
+  stopWatching();
   roomGeneration++;
   roomLoading = false;
   cancelOutcomeReveal();
@@ -81,6 +82,8 @@ async function routePage() {
   if (path === '/editor') return loadPositionEditor();
   if (path === '/practice') return loadMistakePractice();
   if (/^\/study\/(new|[a-f0-9]{24})$/.test(path)) return loadNotebook(path.slice(7));
+  if (path === '/watch') return loadWatchHall();
+  if (/^\/watch\/[a-f0-9]+$/.test(path)) return loadWatchRoom(path.slice(7));
   if (path === '/players') return showPlayers();
   if (path === '/academy') return showAcademy();
   if (path.startsWith('/review/')) return loadReviewGame(path.slice(8));
@@ -252,6 +255,8 @@ document.addEventListener('click', (e) => {
     (url.pathname === '/' ||
       url.pathname === '/players' ||
       url.pathname === '/academy' ||
+      url.pathname === '/watch' ||
+      url.pathname.startsWith('/watch/') ||
       ['/studies', '/editor', '/practice'].includes(url.pathname) ||
       url.pathname.startsWith('/study/') ||
       url.pathname.startsWith('/player/') ||

@@ -4,7 +4,7 @@
 
 <p align="center"><a href="https://doctor-chess.ru"><b>Играть в Doctor Chess ↗</b></a> · <a href="https://doctor-chess.ru/academy">Школа Доктора</a> · <a href="https://github.com/ubica1/doctor-chess/issues">Обратная связь</a></p>
 
-<p align="center"><a href="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml"><img src="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml/badge.svg" alt="Проверки качества"></a> <img src="https://img.shields.io/badge/release-1.3.0-B92D28?style=flat-square" alt="Doctor Chess 1.3.0"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-BD913E?style=flat-square" alt="GNU GPLv3"></a></p>
+<p align="center"><a href="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml"><img src="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml/badge.svg" alt="Проверки качества"></a> <img src="https://img.shields.io/badge/release-1.4.0-B92D28?style=flat-square" alt="Doctor Chess 1.4.0"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-BD913E?style=flat-square" alt="GNU GPLv3"></a></p>
 
 **Doctor Chess** — шахматный веб-клуб. Красно-белая доска в золотой раме, китайские орнаменты и маленький доктор в наушниках создают атмосферу, в которой хочется сыграть ещё одну партию.
 
@@ -19,6 +19,12 @@
 **Домашняя партия.** Играйте вдвоём на одном устройстве без часов и рейтинга. Фигуры можно перемещать касанием, кликами или перетаскиванием.
 
 Полоса связи показывает ваше подключение и присутствие соперника. При возврате во вкладку приложение запрашивает актуальную позицию, а после сбоя восстанавливает соединение. Часы партии продолжают идти; потеря связи сама по себе не объявляет поражение.
+
+## У доски есть зрители
+
+В [зрительном зале](https://doctor-chess.ru/watch) можно смотреть текущие рейтинговые партии, открытые обоими игроками, и выбирать контроль времени. Дружеская трансляция доступна по ссылке. Смотреть можно без регистрации.
+
+В игровой комнате откройте «Зрители у вашей доски»: оба участника должны разрешить просмотр. Любой из них может закрыть трансляцию. Зритель видит доску, часы, профили и ходы; можно вернуться к ранней позиции, перевернуть доску, рисовать свои стрелки и снова перейти к прямому эфиру. Просмотр записи не останавливает партию. После окончания видны результат и причина, становится доступен разбор.
 
 ## Ваш шахматный профиль
 

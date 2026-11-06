@@ -850,6 +850,82 @@ class ReviewRegressions(unittest.TestCase):
                 db.close()
 
 
+class WatchIntegration(unittest.TestCase):
+    setUp = SocialGames.setUp
+    create = SocialGames.create
+    casual = SocialGames.casual
+
+    def allow(self, client, gid, enabled=True):
+        return call(client, "games/" + gid + "/spectators", {"enabled": enabled})
+
+    def test_two_sided_consent_revocation_and_private_live_room(self):
+        g = self.casual()
+        gid = g["id"]
+        self.assertFalse(g["watch"]["enabled"])
+        self.assertEqual(call(self.anon, "watch/" + gid)[0], 404)
+        self.assertEqual(self.allow(self.other, gid)[0], 404)
+        self.assertEqual(self.allow(self.anon, gid)[0], 401)
+        self.assertEqual(self.allow(self.host, gid, "yes")[0], 400)
+        self.assertEqual(self.allow(self.host, gid)[0], 200)
+        self.assertEqual(call(self.anon, "watch/" + gid)[0], 404)
+        self.assertTrue(self.allow(self.guest, gid)[1]["game"]["watch"]["enabled"])
+        public = call(self.anon, "watch/" + gid)[1]["game"]
+        self.assertEqual(public["white"]["username"], self.names[0])
+        for secret in (
+            "you",
+            "offer",
+            "takeback",
+            "giftsLeft",
+            "rematch",
+            "presence",
+            "payload",
+        ):
+            self.assertNotIn(secret, public)
+        self.assertEqual(set(public["white"]), {"username", "avatar", "rating"})
+        self.assertNotIn(gid, [g["id"] for g in call(self.anon, "watch")[1]["games"]])
+        self.assertEqual(call(self.anon, "play/" + gid)[0], 401)
+        self.assertEqual(call(self.other, "play/" + gid)[0], 404)
+        self.assertEqual(
+            call(self.other, "move", {"game": gid, "from": 52, "to": 36})[0], 404
+        )
+        self.assertEqual(self.allow(self.host, gid, False)[0], 200)
+        self.assertEqual(call(self.anon, "watch/" + gid)[0], 404)
+        self.assertEqual(self.allow(self.host, gid)[0], 200)
+        self.assertEqual(call(self.anon, "watch/" + gid)[0], 200)
+
+    def test_rated_hall_replay_completion_and_clocks(self):
+        self.assertEqual(call(self.host, "queue", {"control": "5+0"})[0], 200)
+        g = call(self.guest, "queue", {"control": "5+0"})[1]["game"]
+        gid = g["id"]
+        self.allow(self.host, gid)
+        self.allow(self.guest, gid)
+        self.assertIn(gid, [g["id"] for g in call(self.anon, "watch")[1]["games"]])
+        before = call(self.anon, "watch/" + gid)[1]["game"]
+        active = g["state"]["turn"]
+        with server.lock:
+            row = server.game_row(gid)
+            row["payload"]["tick"] -= 3
+            server.db.execute(
+                "UPDATE games SET payload=? WHERE id=?",
+                (json.dumps(row["payload"]), gid),
+            )
+        after = call(self.anon, "watch/" + gid)[1]["game"]
+        self.assertLess(after["clocks"][active], before["clocks"][active] - 2)
+        white = self.guest if g["you"] == "w" else self.host
+        self.assertEqual(
+            call(white, "move", {"game": gid, "from": 52, "to": 36})[0], 200
+        )
+        updated = call(self.anon, "watch/" + gid)[1]["game"]
+        self.assertEqual(len(updated["moves"]), 1)
+        self.assertEqual(updated["state"]["b"][36], "P")
+        self.assertEqual(call(white, "resign", {"game": gid})[0], 200)
+        finished = call(self.anon, "watch/" + gid)[1]["game"]
+        self.assertEqual(finished["result"], "b")
+        self.assertNotIn(gid, [g["id"] for g in call(self.anon, "watch")[1]["games"]])
+        self.assertEqual(self.allow(self.host, gid)[0], 409)
+        self.assertEqual(call(self.anon, "games/" + gid)[0], 200)
+
+
 class StudiesIntegration(unittest.TestCase):
     setUp = SocialGames.setUp
 

@@ -2752,6 +2752,7 @@ select:focus-visible {
   background: #f3e3bc;
   box-shadow: inset 3px 0 var(--red);
 }
+#watch-board,
 #study-board,
 #editor-board,
 #mistake-board {
@@ -2767,6 +2768,7 @@ select:focus-visible {
   outline: none;
   container-type: inline-size;
 }
+#watch-board:focus-visible,
 #study-board:focus-visible,
 #editor-board:focus-visible,
 #mistake-board:focus-visible {
@@ -3083,5 +3085,236 @@ select:focus-visible {
   .ink-controls button,
   .ink-controls select {
     min-height: 44px;
+  }
+}
+
+/* A quiet spectator gallery, with the same paper and board as the club. */
+.watch-hall-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+}
+.watch-hall-tools button,
+.watch-hall-tools select,
+.spectator-actions button,
+#watch-retry,
+#watch-reopen {
+  padding: 10px 14px;
+  background: #fff8e8;
+  border: 1px solid #cbb47f;
+  border-radius: 4px;
+  color: #795733;
+  font: inherit;
+}
+.watch-hall-tools [role='status'] {
+  font-size: 14px;
+  color: #826a45;
+}
+.watch-hall-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 22px;
+}
+.watch-table-card {
+  display: block;
+  color: #563c27;
+  text-decoration: none;
+  padding: 24px;
+  background: #fff9ed;
+  border: 1px solid #ccb688;
+  box-shadow: 3px 4px 0 #c9af7525;
+  border-radius: 3px 8px 4px 5px;
+}
+.watch-table-card:hover {
+  border-color: #aa813b;
+  background: #fff5de;
+}
+.watch-table-card strong {
+  display: block;
+  font-family: Georgia, serif;
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+.watch-table-card strong small {
+  color: #927c59;
+  font:
+    14px Arial,
+    sans-serif;
+}
+.watch-table-top,
+.watch-table-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.watch-table-top {
+  margin-bottom: 24px;
+}
+.watch-table-top b {
+  color: #496b4a;
+}
+.watch-versus {
+  display: block;
+  margin: 8px 0;
+  color: #9a8058;
+  font-size: 14px;
+}
+.watch-table-bottom {
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid #ddccaa;
+}
+.watch-room-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  margin: 24px 0;
+}
+.watch-room-heading h1 {
+  font-family: Georgia, serif;
+  font-weight: 400;
+  font-size: 38px;
+  color: var(--red-dark);
+}
+.watch-room-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(270px, 1fr);
+  gap: 34px;
+}
+.watch-room-layout > * {
+  min-width: 0;
+}
+.watch-room-layout .board-frame {
+  margin-block: 16px;
+  transform: none;
+}
+.watch-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  font-size: 20px;
+}
+.watch-player a {
+  color: var(--red-dark);
+  overflow-wrap: anywhere;
+}
+.watch-clock {
+  font:
+    30px Georgia,
+    serif;
+  padding: 9px 14px;
+  min-width: 106px;
+  text-align: center;
+  background: #f4e6c8;
+  border: 1px solid #c8ad75;
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.watch-clock[data-running='true'] {
+  background: #fffaf0;
+  border-color: #b0352b;
+}
+.watch-moves {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  max-height: 500px;
+  overflow: auto;
+  padding: 8px 0;
+}
+.watch-moves button {
+  text-align: left;
+  padding: 10px;
+  border: 0;
+  background: transparent;
+  color: #5d472b;
+  font-size: 17px;
+  cursor: pointer;
+}
+.watch-moves button small {
+  color: #a28c65;
+  font-size: 13px;
+  margin-right: 6px;
+}
+.watch-moves button[aria-current='true'] {
+  background: #f2dfb3;
+  box-shadow: inset 3px 0 var(--red);
+}
+.watch-result {
+  margin-top: 20px;
+  border: 1px solid #bd994e;
+  padding: 22px;
+  background: #fff4d9;
+}
+.watch-result h2 {
+  font:
+    28px Georgia,
+    serif;
+  color: var(--red-dark);
+}
+#watch-connection,
+#watch-replay-status {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #79623f;
+}
+.spectator-actions {
+  margin: 14px 0;
+  padding: 12px 16px;
+  background: #fff8e7;
+  border: 1px solid #d6c397;
+  border-radius: 4px;
+}
+.spectator-actions summary {
+  cursor: pointer;
+  color: var(--red-dark);
+}
+.spectator-actions p {
+  line-height: 1.6;
+  font-size: 14px;
+}
+@media (max-width: 850px) {
+  .watch-room-layout {
+    grid-template-columns: 1fr;
+  }
+  .watch-room-heading h1 {
+    font-size: 28px;
+  }
+  .watch-player {
+    font-size: 17px;
+  }
+  .watch-clock {
+    font-size: 25px;
+  }
+}
+
+@media (min-width: 1101px) {
+  header nav {
+    gap: 14px;
+  }
+  header nav button {
+    white-space: nowrap;
+  }
+}
+@media (min-width: 961px) and (max-width: 1100px) {
+  header {
+    flex-wrap: wrap;
+  }
+  header .login-button {
+    margin-left: auto;
+  }
+  header nav {
+    order: 3;
+    width: 100%;
+    gap: 18px;
+  }
+  header nav button {
+    white-space: nowrap;
   }
 }

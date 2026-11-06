@@ -600,6 +600,11 @@ async function openLocalReview(id) {
   }
 }
 async function loadReviewGame(id) {
+  if (typeof learningMatchActive === 'function' && learningMatchActive()) {
+    toast('Завершите свою сетевую партию, чтобы открыть разбор.');
+    navigate('/');
+    return;
+  }
   try {
     const data = await api('games/' + encodeURIComponent(id)),
       g = data.game,

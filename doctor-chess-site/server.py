@@ -9,6 +9,7 @@ from game_clock import settle_clock, insufficient_for_side
 from presence import Presence
 from friendly import FriendlyActions
 from studies import Studies
+from watch import WatchGames
 
 BASE = Path(__file__).resolve().parent
 PUBLIC_ORIGIN = os.environ.get("DOCTOR_CHESS_PUBLIC_ORIGIN", "").rstrip("/")
@@ -253,6 +254,7 @@ def public_game(g, uid):
         "kind": g.get("kind", "rated"),
         "created": g["created"],
         "rematch": club.pending_rematch(g, uid),
+        "watch": watch.consent(g),
         "presence": {
             side: presence.online(g[key])
             for side, key in [("w", "white"), ("b", "black")]
@@ -270,6 +272,7 @@ club = ClubGames(db, CONTROLS, INITIAL, profile, game_row, public_game)
 friendly = FriendlyActions(db, CONTROLS, game_row, public_game)
 studies = Studies(db, BASE)
 study_gate = threading.BoundedSemaphore(2)
+watch = WatchGames(db, game_row, profile)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -328,8 +331,9 @@ class Handler(SimpleHTTPRequestHandler):
             or self.path.startswith("/game/")
             or self.path.startswith("/play/")
             or self.path.startswith("/study/")
+            or self.path.startswith("/watch/")
             or urlparse(self.path).path
-            in ("/players", "/academy", "/studies", "/editor", "/practice")
+            in ("/players", "/academy", "/studies", "/editor", "/practice", "/watch")
         ):
             self.path = "/index.html"
             return super().do_GET()
@@ -354,6 +358,11 @@ class Handler(SimpleHTTPRequestHandler):
                 study_match = re.fullmatch(r"/api/studies/([a-f0-9]{24})", parsed.path)
                 if study_match:
                     return self.reply(studies.detail(uid, study_match[1]))
+                if parsed.path == "/api/watch":
+                    return self.reply(watch.listing())
+                watch_match = re.fullmatch(r"/api/watch/([a-f0-9]+)", parsed.path)
+                if watch_match:
+                    return self.reply(watch.detail(watch_match[1]))
                 if parsed.path == "/api/lobby":
                     return self.reply(presence.lobby(db, CONTROLS))
                 if parsed.path.startswith("/api/play/"):
@@ -591,6 +600,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply({"user": profile(uid)}, cookie=self.session(uid))
         if not uid:
             return self.reply({"error": "Сначала войдите в профиль"}, 401)
+        watch_match = re.fullmatch(r"/api/games/([a-f0-9]+)/spectators", route)
+        if watch_match:
+            g = watch.set_consent(uid, watch_match[1], x.get("enabled"))
+            return self.reply({"game": public_game(g, uid)})
         study_match = re.fullmatch(r"/api/studies(?:/([a-f0-9]{24}))?", route)
         if study_match:
             return self.reply(studies.save(uid, study_match[1], x, self.study_prepared))

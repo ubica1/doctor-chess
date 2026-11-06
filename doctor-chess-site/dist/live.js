@@ -88,6 +88,7 @@ function updateFriendlyActions() {
   $('resign').disabled = $('decline-draw').disabled = busy;
   $('draw').disabled = busy || (!!game?.offer && game.offer === game.you);
   updateLiveStatus();
+  if (typeof updateWatchConsent === 'function') updateWatchConsent();
 }
 async function onlineAction(action) {
   if (!active() || busy) return;
