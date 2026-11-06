@@ -593,6 +593,7 @@ function acceptGame(g) {
     cancelGameReport();
   }
   game = g;
+  updateLearningSafety();
   queued = false;
   if (!g.result) control = g.control;
   clockSample = Date.now();
@@ -637,6 +638,7 @@ async function poll() {
     user = x.user;
     updateUser();
     remoteGame = x.game;
+    updateLearningSafety();
     updateResume();
     if (mode !== 'online') return;
     if (gameRoute() && x.game?.id !== gameRoute() && !game?.rematch) return;
@@ -871,6 +873,7 @@ $('privacy-info').onclick = () =>
   );
 initializeStudio();
 initializeLive();
+initializeLearning();
 restoreDesk();
 render();
 api('me')

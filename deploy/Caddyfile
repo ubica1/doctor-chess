@@ -1,7 +1,7 @@
 {$DOMAIN} {
     encode zstd gzip
     request_body {
-        max_size 16KB
+        max_size 256KB
     }
     header X-Content-Type-Options nosniff
     reverse_proxy app:4173

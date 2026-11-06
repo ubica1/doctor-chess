@@ -8,6 +8,7 @@ from identity import name_key, migrate_names
 from game_clock import settle_clock, insufficient_for_side
 from presence import Presence
 from friendly import FriendlyActions
+from studies import Studies
 
 BASE = Path(__file__).resolve().parent
 PUBLIC_ORIGIN = os.environ.get("DOCTOR_CHESS_PUBLIC_ORIGIN", "").rstrip("/")
@@ -267,6 +268,8 @@ def public_game(g, uid):
 
 club = ClubGames(db, CONTROLS, INITIAL, profile, game_row, public_game)
 friendly = FriendlyActions(db, CONTROLS, game_row, public_game)
+studies = Studies(db, BASE)
+study_gate = threading.BoundedSemaphore(2)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -324,7 +327,9 @@ class Handler(SimpleHTTPRequestHandler):
             or self.path.startswith("/invite/")
             or self.path.startswith("/game/")
             or self.path.startswith("/play/")
-            or urlparse(self.path).path in ("/players", "/academy")
+            or self.path.startswith("/study/")
+            or urlparse(self.path).path
+            in ("/players", "/academy", "/studies", "/editor", "/practice")
         ):
             self.path = "/index.html"
             return super().do_GET()
@@ -336,6 +341,19 @@ class Handler(SimpleHTTPRequestHandler):
                 presence.touch(uid)
                 parsed = urlparse(self.path)
                 query = parse_qs(parsed.query)
+                if parsed.path == "/api/studies":
+                    try:
+                        page = max(1, min(10000, int(query.get("page", ["1"])[0])))
+                    except ValueError:
+                        return self.reply({"error": "Некорректная страница"}, 400)
+                    return self.reply(
+                        studies.listing(
+                            uid, page, query.get("archived", ["0"])[0] == "1"
+                        )
+                    )
+                study_match = re.fullmatch(r"/api/studies/([a-f0-9]{24})", parsed.path)
+                if study_match:
+                    return self.reply(studies.detail(uid, study_match[1]))
                 if parsed.path == "/api/lobby":
                     return self.reply(presence.lobby(db, CONTROLS))
                 if parsed.path.startswith("/api/play/"):
@@ -468,7 +486,11 @@ class Handler(SimpleHTTPRequestHandler):
             size = int(self.headers.get("Content-Length", "0"))
             if size < 0:
                 return self.reply({"error": "Некорректный размер запроса"}, 400)
-            if size > 10000:
+            if size > (
+                200000
+                if re.fullmatch(r"/api/studies(?:/[a-f0-9]{24})?", self.path)
+                else 10000
+            ):
                 return self.reply({"error": "Слишком большой запрос"}, 413)
             x = json.loads(self.rfile.read(size) or b"{}")
             if not isinstance(x, dict):
@@ -476,6 +498,27 @@ class Handler(SimpleHTTPRequestHandler):
             self.received_at = time.time()
         except:
             return self.reply({"error": "Некорректный запрос"}, 400)
+        self.study_prepared = None
+        study_match = re.fullmatch(r"/api/studies(?:/([a-f0-9]{24}))?", self.path)
+        if study_match:
+            try:
+                with lock:
+                    uid = self.user()
+                    if not uid:
+                        raise ClubError("Войдите, чтобы сохранить исследование.", 401)
+                    if study_match[1]:
+                        studies.owner_row(uid, study_match[1])
+                if not study_gate.acquire(blocking=False):
+                    raise ClubError(
+                        "Сейчас сохраняется несколько исследований. Повторите через несколько секунд.",
+                        429,
+                    )
+                try:
+                    self.study_prepared = studies.prepare(x)
+                finally:
+                    study_gate.release()
+            except ClubError as error:
+                return self.reply({"error": str(error)}, error.status)
         with lock:
             try:
                 self.post(x)
@@ -548,6 +591,16 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply({"user": profile(uid)}, cookie=self.session(uid))
         if not uid:
             return self.reply({"error": "Сначала войдите в профиль"}, 401)
+        study_match = re.fullmatch(r"/api/studies(?:/([a-f0-9]{24}))?", route)
+        if study_match:
+            return self.reply(studies.save(uid, study_match[1], x, self.study_prepared))
+        study_action = re.fullmatch(
+            r"/api/studies/([a-f0-9]{24})/(archive|restore)", route
+        )
+        if study_action:
+            return self.reply(
+                studies.archive(uid, study_action[1], x, study_action[2] == "archive")
+            )
         if route in (
             "/api/give-time",
             "/api/takeback-request",

@@ -26,6 +26,7 @@ function updateWorkbench() {
   $('variation-label').textContent = branch
     ? 'Пробуем свой вариант. Исходная партия сохранена.'
     : 'Можно вернуться к исходной партии.';
+  $('study-from-game').disabled = busy || botThinking || !!active();
   $('make-variation').disabled = busy || botThinking || !!active();
   $('train-position').disabled = busy || botThinking || !!active();
   $('make-variation').textContent = branch ? 'Новый вариант отсюда' : 'Вариант на доске';
@@ -231,7 +232,7 @@ async function copyFEN() {
   }
 }
 function initializeWorkbench() {
-  $('nav-import').onclick = openImport;
+  $('nav-import').onclick = () => navigate('/studies');
   $('make-variation').onclick = startVariation;
   $('return-original').onclick = returnOriginal;
   $('train-position').onclick = trainFromPosition;

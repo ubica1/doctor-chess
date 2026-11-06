@@ -138,6 +138,8 @@ function updateGameReport() {
   if ($('game-report').hidden) return;
   $('report-cancel').hidden = !reportRunning;
   $('report-export').disabled = reportRunning || !reportData.rows.length;
+  $('report-practice').disabled =
+    !!active() || !reportData.rows.some((r) => r.grade !== 'good' && r.best !== '—');
   $('report-next-error').disabled = !reportData.rows.some((r) => r.grade !== 'good');
   const renderKey = reportData.rows.length + ':' + reportRunning + ':' + reportIdentity;
   if (renderKey === reportRenderKey) return;
@@ -151,18 +153,27 @@ function updateGameReport() {
     plural(rows.length, ['полуход', 'полухода', 'полуходов']) +
     '. ' +
     rows.filter((r) => r.grade === 'blunder').length +
-    ' зевков, ' +
+    ' ' +
+    plural(rows.filter((r) => r.grade === 'blunder').length, ['зевок', 'зевка', 'зевков']) +
+    ', ' +
     rows.filter((r) => r.grade === 'mistake').length +
-    ' ошибок.';
+    ' ' +
+    plural(rows.filter((r) => r.grade === 'mistake').length, ['ошибка', 'ошибки', 'ошибок']) +
+    '.';
   $('report-rows').innerHTML = rows
     .map(
       (r) =>
-        `<button class="report-row" data-report-ply="${r.ply}"><span>${r.number}${r.side === 'w' ? '.' : '…'} <b>${escapeHtml(r.san)}</b><small>${r.book ? 'Ход репертуара Доктора' : 'Лучше: ' + escapeHtml(r.best)}</small></span><span class="report-grade ${r.grade}">${labels[r.grade]}<small>${r.loss >= 9000 ? 'Изменилась оценка мата' : '−' + (r.loss / 100).toFixed(2)} · ${r.after.type === 'mate' ? '#' + r.after.score : (r.after.score >= 0 ? '+' : '') + (r.after.score / 100).toFixed(2)}</small></span></button>`
+        `<div class="report-entry"><button class="report-row" data-report-ply="${r.ply}"><span>${r.number}${r.side === 'w' ? '.' : '…'} <b>${escapeHtml(r.san)}</b><small>${r.book ? 'Ход репертуара Доктора' : 'Лучше: ' + escapeHtml(r.best)}</small></span><span class="report-grade ${r.grade}">${labels[r.grade]}<small>${r.loss >= 9000 ? 'Изменилась оценка мата' : '−' + (r.loss / 100).toFixed(2)} · ${r.after.type === 'mate' ? '#' + r.after.score : (r.after.score >= 0 ? '+' : '') + (r.after.score / 100).toFixed(2)}</small></span></button><button class="report-to-practice" data-practice-ply="${r.ply}" ${r.grade === 'good' || r.best === '—' ? 'hidden' : ''}>В повторение</button></div>`
     )
     .join('');
   document
     .querySelectorAll('[data-report-ply]')
     .forEach((b) => (b.onclick = () => setReview(Number(b.dataset.reportPly))));
+  document
+    .querySelectorAll('[data-practice-ply]')
+    .forEach(
+      (button) => (button.onclick = () => saveReportMistakes(Number(button.dataset.practicePly)))
+    );
 }
 async function analyzeWholeGame() {
   if (active() || busy || botThinking || reportRunning || !currentLine().records.length) return;
@@ -266,6 +277,7 @@ async function analyzeWholeGame() {
   }
 }
 function initializeGameReport() {
+  $('report-practice').onclick = () => saveReportMistakes();
   $('report-next-error').onclick = () => {
     if (active() || reportIdentity !== reportKey()) return;
     const mistakes = reportData.rows.filter((r) => r.grade !== 'good');

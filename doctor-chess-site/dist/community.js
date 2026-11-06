@@ -34,6 +34,7 @@ function communityNav(which) {
     .forEach((b) => b.classList.toggle('nav-active', b.id === which));
 }
 async function routePage() {
+  closeLearningPages();
   roomGeneration++;
   roomLoading = false;
   cancelOutcomeReveal();
@@ -76,6 +77,10 @@ async function routePage() {
   $('game-page').classList.remove('lobby', 'game-room');
   $('room-heading').hidden = true;
   if (path.startsWith('/invite/')) return loadInvitation(path.slice(8));
+  if (path === '/studies') return loadStudies();
+  if (path === '/editor') return loadPositionEditor();
+  if (path === '/practice') return loadMistakePractice();
+  if (/^\/study\/(new|[a-f0-9]{24})$/.test(path)) return loadNotebook(path.slice(7));
   if (path === '/players') return showPlayers();
   if (path === '/academy') return showAcademy();
   if (path.startsWith('/review/')) return loadReviewGame(path.slice(8));
@@ -247,6 +252,8 @@ document.addEventListener('click', (e) => {
     (url.pathname === '/' ||
       url.pathname === '/players' ||
       url.pathname === '/academy' ||
+      ['/studies', '/editor', '/practice'].includes(url.pathname) ||
+      url.pathname.startsWith('/study/') ||
       url.pathname.startsWith('/player/') ||
       url.pathname.startsWith('/review/') ||
       url.pathname.startsWith('/invite/') ||

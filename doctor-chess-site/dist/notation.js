@@ -341,7 +341,7 @@ const ChessNotation = (() => {
           .replace(/"/g, '\\"');
     let headers = {
       Event: 'Doctor Chess',
-      Site: 'Local club',
+      Site: 'https://doctor-chess.ru',
       Date: new Date().toLocaleDateString('sv-SE').replace(/-/g, '.'),
       White: 'White',
       Black: 'Black',

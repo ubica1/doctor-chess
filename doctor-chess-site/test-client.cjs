@@ -135,6 +135,8 @@ vm.runInContext(fs.readFileSync('dist/premoves.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/game-room.js', 'utf8'), context);
 context.communityNav = () => {};
 vm.runInContext(fs.readFileSync('dist/live.js', 'utf8'), context);
+for (const file of ['study-tree.js', 'notebook.js', 'position-editor.js', 'mistake-practice.js'])
+  vm.runInContext(fs.readFileSync('dist/' + file, 'utf8'), context);
 vm.runInContext(fs.readFileSync('dist/app.js', 'utf8'), context);
 const run = (src) => vm.runInContext(src, context);
 async function appTests() {

@@ -7,7 +7,7 @@ RUN apt-get update \
     && mkdir /data && chown doctor:doctor /data
 
 WORKDIR /app
-COPY doctor-chess-site/*.py doctor-chess-site/engine-runner.cjs ./
+COPY doctor-chess-site/*.py doctor-chess-site/*-runner.cjs ./
 COPY doctor-chess-site/dist ./dist
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

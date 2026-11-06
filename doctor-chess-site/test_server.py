@@ -850,6 +850,216 @@ class ReviewRegressions(unittest.TestCase):
                 db.close()
 
 
+class StudiesIntegration(unittest.TestCase):
+    setUp = SocialGames.setUp
+
+    def payload(self, key="study-request-0001"):
+        return {
+            "title": "Тетрадь вариантов",
+            "description": "Мои идеи",
+            "public": False,
+            "clientKey": key,
+            "document": {
+                "version": 1,
+                "start": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                "nodes": [
+                    {
+                        "id": "root",
+                        "parent": None,
+                        "move": None,
+                        "comment": "План",
+                        "nag": 0,
+                    },
+                    {
+                        "id": "n1",
+                        "parent": "root",
+                        "move": {"from": 52, "to": 36, "promotion": "q"},
+                        "comment": "Центр",
+                        "nag": 1,
+                    },
+                    {
+                        "id": "n2",
+                        "parent": "n1",
+                        "move": {"from": 12, "to": 28, "promotion": "q"},
+                        "comment": "",
+                        "nag": 0,
+                    },
+                    {
+                        "id": "n3",
+                        "parent": "root",
+                        "move": {"from": 51, "to": 35, "promotion": "q"},
+                        "comment": "Другой план",
+                        "nag": 0,
+                    },
+                ],
+            },
+        }
+
+    def create_study(self, data=None):
+        data = data or self.payload()
+        status, out = call(self.host, "studies", data)
+        self.assertEqual(status, 200, out)
+        return out["study"]
+
+    def test_private_share_archive_and_revision_access(self):
+        data = self.payload()
+        self.assertEqual(call(self.anon, "studies", data)[0], 401)
+        self.assertEqual(call(self.anon, "studies")[0], 401)
+        study = self.create_study(data)
+        sid = study["id"]
+        self.assertTrue(study["own"])
+        self.assertFalse(study["public"])
+        self.assertEqual(study["revision"], 1)
+        self.assertEqual(call(self.anon, "studies/" + sid)[0], 404)
+        self.assertEqual(call(self.other, "studies/" + sid)[0], 404)
+        self.assertEqual(
+            call(self.other, "studies/" + sid, dict(data, revision=1))[0], 404
+        )
+        self.assertEqual(
+            call(self.other, "studies/" + sid + "/archive", {"revision": 1})[0], 404
+        )
+        status, out = call(
+            self.host, "studies/" + sid, dict(data, public=True, revision=1)
+        )
+        self.assertEqual(status, 200, out)
+        self.assertEqual(out["study"]["revision"], 2)
+        shared = call(self.anon, "studies/" + sid)[1]["study"]
+        self.assertFalse(shared["own"])
+        self.assertEqual(shared["document"]["nodes"][1]["comment"], "Центр")
+        self.assertNotIn("owner", shared)
+        self.assertNotIn("clientKey", shared)
+        self.assertEqual(
+            call(self.host, "studies/" + sid, dict(data, revision=1))[0], 409
+        )
+        self.assertEqual(
+            call(self.host, "studies/" + sid + "/archive", {"revision": 2})[0], 200
+        )
+        self.assertEqual(call(self.anon, "studies/" + sid)[0], 404)
+        self.assertEqual(call(self.host, "studies")[1]["total"], 0)
+        archived = call(self.host, "studies?archived=1")[1]["studies"][0]
+        self.assertEqual(archived["revision"], 3)
+        self.assertEqual(
+            call(self.host, "studies/" + sid + "/restore", {"revision": 3})[0], 200
+        )
+        self.assertEqual(call(self.anon, "studies/" + sid)[0], 200)
+        out = call(self.host, "studies/" + sid, dict(data, revision=4))[1]["study"]
+        self.assertEqual(out["revision"], 5)
+        self.assertEqual(call(self.anon, "studies/" + sid)[0], 404)
+        self.assertEqual(call(self.guest, "studies")[1]["total"], 0)
+
+    def test_create_retry_and_racing_edit_preserve_data(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        data = self.payload()
+        first = self.create_study(data)
+        second = self.create_study(dict(data, title="Повтор запроса"))
+        self.assertEqual(first["id"], second["id"])
+        self.assertEqual(second["title"], data["title"])
+        barrier = threading.Barrier(2)
+
+        def update(title):
+            barrier.wait()
+            return call(
+                self.host, "studies/" + first["id"], dict(data, revision=1, title=title)
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(update, ["Первая вкладка", "Вторая вкладка"]))
+        self.assertEqual(sorted(status for status, _ in results), [200, 409])
+        winner = next(out["study"] for status, out in results if status == 200)
+        stored = call(self.host, "studies/" + first["id"])[1]["study"]
+        self.assertEqual(stored["revision"], 2)
+        self.assertEqual(stored["title"], winner["title"])
+        self.assertEqual(call(self.host, "studies")[1]["total"], 1)
+
+    def test_rejects_illegal_trees_types_and_oversized_payloads(self):
+        data = self.payload()
+        self.assertEqual(call(self.host, "studies", dict(data, title=[]))[0], 400)
+        self.assertEqual(call(self.host, "studies", dict(data, public="yes"))[0], 400)
+        self.assertEqual(call(self.host, "studies", dict(data, clientKey=True))[0], 400)
+        for change in ["cycle", "illegal", "note", "missing", "fen"]:
+            bad = json.loads(json.dumps(data))
+            if change == "cycle":
+                bad["document"]["nodes"][1]["parent"] = "n2"
+            if change == "illegal":
+                bad["document"]["nodes"][1]["move"]["to"] = 20
+            if change == "note":
+                bad["document"]["nodes"][0]["comment"] = "x" * 2001
+            if change == "missing":
+                bad["document"]["nodes"][1]["parent"] = "absent"
+            if change == "fen":
+                bad["document"]["start"] = "8/8/8/8/8/8/8/8 w - - 0 1"
+            self.assertEqual(call(self.host, "studies", bad)[0], 400, change)
+        self.assertEqual(call(self.host, "studies")[1]["total"], 0)
+        self.assertEqual(
+            call(self.host, "studies", dict(data, description="x" * 200001))[0], 413
+        )
+        self.assertEqual(call(self.host, "profile", {"bio": "x" * 11000})[0], 413)
+        study = self.create_study(data)
+        self.assertEqual(
+            call(self.host, "studies/" + study["id"], dict(data, revision=True))[0], 409
+        )
+        self.assertEqual(
+            call(self.host, "studies/" + study["id"] + "/archive", {"revision": True})[
+                0
+            ],
+            409,
+        )
+
+    def test_validation_does_not_block_live_requests_and_gate_recovers(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        original = server.studies.prepare
+        started, release = threading.Event(), threading.Event()
+
+        def prepare(data):
+            started.set()
+            release.wait(5)
+            return original(data)
+
+        server.studies.prepare = prepare
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                pending = pool.submit(call, self.host, "studies", self.payload())
+                self.assertTrue(started.wait(2))
+                try:
+                    live = pool.submit(call, self.guest, "state")
+                    self.assertEqual(live.result(timeout=2)[0], 200)
+                finally:
+                    release.set()
+                self.assertEqual(pending.result(timeout=10)[0], 200)
+        finally:
+            release.set()
+            server.studies.prepare = original
+        server.study_gate.acquire()
+        server.study_gate.acquire()
+        try:
+            self.assertEqual(
+                call(self.host, "studies", self.payload("another-request"))[0], 429
+            )
+        finally:
+            server.study_gate.release()
+            server.study_gate.release()
+        self.assertEqual(
+            call(self.host, "studies", self.payload("another-request"))[0], 200
+        )
+
+    def test_study_routes_and_private_library_page(self):
+        study = self.create_study()
+        for path in [
+            "/studies",
+            "/study/new",
+            "/study/" + study["id"],
+            "/editor",
+            "/practice",
+        ]:
+            with self.anon.open(BASE + path) as response:
+                self.assertEqual(response.status, 200)
+                self.assertIn(b"/notebook.js", response.read())
+        self.assertEqual(call(self.host, "studies?page=invalid")[0], 400)
+        self.assertEqual(call(self.host, "studies?page=2")[1]["studies"], [])
+
+
 def tearDownModule():
     httpd.shutdown()
     httpd.server_close()

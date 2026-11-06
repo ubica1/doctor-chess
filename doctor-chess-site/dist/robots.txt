@@ -4,3 +4,5 @@ Disallow: /api/
 Disallow: /game/
 Disallow: /play/
 Disallow: /invite/
+Disallow: /study/
+Disallow: /studies

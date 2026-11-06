@@ -19,6 +19,8 @@ const checks = [
   'test-client.cjs',
   'test-room.cjs',
   'test-live.cjs',
+  'test-notebook.cjs',
+  'test-workshop-ui.cjs',
   'test-doctor.cjs',
 ];
 for (const file of checks) {
