@@ -140,6 +140,7 @@ function toast(t) {
   toastTimer = setTimeout(() => ($('toast').hidden = true), 4000);
 }
 async function api(path, data) {
+  const accountAtStart = user?.id;
   const controller = typeof AbortController === 'undefined' ? null : new AbortController();
   const timer = controller ? setTimeout(() => controller.abort(), 10000) : null;
   let r, x;
@@ -166,6 +167,11 @@ async function api(path, data) {
     );
   } finally {
     if (timer !== null) clearTimeout(timer);
+  }
+  if (accountAtStart !== user?.id && !['login', 'register', 'logout'].includes(path)) {
+    const error = Error('Профиль изменился. Повторите действие.');
+    error.staleSession = true;
+    throw error;
   }
   if (!r.ok) {
     const error = Error(x.error || 'Не удалось выполнить действие');
@@ -682,7 +688,7 @@ async function poll() {
       render();
     } else updatePanel();
   } catch (e) {
-    connectionFailed();
+    if (!e.staleSession) connectionFailed();
   } finally {
     polling = false;
   }
@@ -918,8 +924,9 @@ api('me')
     await poll();
     scheduleBot();
   })
-  .catch(() =>
-    toast('Не удалось подключиться к Doctor Chess. Проверьте соединение и обновите страницу.')
-  );
+  .catch((error) => {
+    if (!error.staleSession)
+      toast('Не удалось подключиться к Doctor Chess. Проверьте соединение и обновите страницу.');
+  });
 setInterval(poll, 1000);
 setInterval(tickClocks, 200);

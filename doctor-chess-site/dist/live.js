@@ -159,8 +159,8 @@ async function resumeLive() {
     }
     await poll();
     refreshLobby();
-  } catch {
-    connectionFailed();
+  } catch (error) {
+    if (!error.staleSession) connectionFailed();
   } finally {
     recoveryBusy = false;
   }

@@ -597,6 +597,42 @@ async function appTests() {
   assert.equal(run('remoteGame'), null);
   pendingFetch = null;
   console.log('PASS: signing out invalidates in-flight account state');
+  run(
+    "user={id:'old-account',username:'Old',avatar:'crane',ratings:{blitz:{rating:1200}}};mode='online';game=null;remoteGame=null;resetBoard()"
+  );
+  context.auditOldGame = run(
+    "({id:'old-game',control:'5+0',category:'blitz',you:'w',state:initial(),moves:[],last:[],clocks:{w:300,b:300},white:user,black:user,result:null})"
+  );
+  run('acceptGame(auditOldGame)');
+  let resolveOldMove;
+  pendingFetch = () =>
+    new Promise((done) => {
+      resolveOldMove = done;
+    });
+  const oldMove = run("makeMove(52,36,'q')");
+  run('forgetAccount()');
+  resolveOldMove({ ok: true, json: async () => ({ game: context.auditOldGame }) });
+  await oldMove;
+  assert.equal(
+    run('remoteGame'),
+    null,
+    'late move response must not revive signed-out player game'
+  );
+  run(
+    "user={id:'old-account',username:'Old',avatar:'crane',ratings:{blitz:{rating:1200}}};mode='online';queued=false"
+  );
+  let resolveOldQueue;
+  pendingFetch = () =>
+    new Promise((done) => {
+      resolveOldQueue = done;
+    });
+  const oldQueue = run('start()');
+  run('forgetAccount()');
+  resolveOldQueue({ ok: true, json: async () => ({ queued: true }) });
+  await oldQueue;
+  assert.equal(run('queued'), false, 'late queue reply must not restart search after sign out');
+  pendingFetch = null;
+  console.log('PASS: API isolates late moves and matchmaking replies from a signed-out account');
 
   console.log(
     'PASS: delayed result, cancellation on review/reset, manual details and stale request isolation'
