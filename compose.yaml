@@ -5,6 +5,7 @@ services:
     build: .
     restart: unless-stopped
     environment:
+      DOCTOR_CHESS_TRUST_PROXY: '1'
       DOCTOR_CHESS_PUBLIC_ORIGIN: https://${DOMAIN:?Set DOMAIN in .env}
     volumes:
       - chess-data:/data

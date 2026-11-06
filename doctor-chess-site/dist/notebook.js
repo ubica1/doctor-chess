@@ -528,6 +528,7 @@ function downloadLearningPGN(text, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function updateLearningSafety() {
+  if (typeof suspendTrainingForGame === 'function') suspendTrainingForGame();
   if (typeof updateMistakeSafety === 'function') updateMistakeSafety();
   if (!notebook) return;
   $('study-evaluate').disabled = !!learningMatchActive();

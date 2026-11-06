@@ -850,6 +850,144 @@ class ReviewRegressions(unittest.TestCase):
                 db.close()
 
 
+class AuditRegressions(unittest.TestCase):
+    setUp = SocialGames.setUp
+    create = SocialGames.create
+    casual = SocialGames.casual
+
+    def test_password_work_does_not_block_state_and_registration_race(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from unittest.mock import patch
+
+        started, release = threading.Event(), threading.Event()
+        original = server.accounts.compute
+
+        def blocked(prepared):
+            started.set()
+            release.wait(5)
+            return original(prepared)
+
+        with ThreadPoolExecutor(max_workers=2) as pool, patch.object(
+            server.accounts, "compute", blocked
+        ):
+            login = pool.submit(
+                call,
+                client(),
+                "login",
+                {"username": self.names[0], "password": "social-test-pass"},
+            )
+            try:
+                self.assertTrue(started.wait(2))
+                state = pool.submit(call, self.anon, "state")
+                self.assertEqual(state.result(timeout=1)[0], 200)
+            finally:
+                release.set()
+            self.assertEqual(login.result(timeout=3)[0], 200)
+        name = "Race_" + server.secrets.token_hex(4)
+        barrier = threading.Barrier(2)
+
+        def racing(prepared):
+            barrier.wait(timeout=3)
+            return original(prepared)
+
+        with ThreadPoolExecutor(max_workers=2) as pool, patch.object(
+            server.accounts, "compute", racing
+        ):
+            results = list(
+                pool.map(
+                    lambda _: call(
+                        client(),
+                        "register",
+                        {"username": name, "password": "registration-race"},
+                    )[0],
+                    range(2),
+                )
+            )
+        self.assertEqual(sorted(results), [200, 409])
+        with server.lock:
+            uid = server.db.execute(
+                "SELECT id FROM users WHERE username=?", (name,)
+            ).fetchone()[0]
+            self.assertEqual(
+                server.db.execute(
+                    "SELECT COUNT(*) FROM ratings WHERE user_id=?", (uid,)
+                ).fetchone()[0],
+                4,
+            )
+
+    def test_proxy_limits_are_separate_and_untrusted_headers_are_ignored(self):
+        from accounts import client_address
+        from unittest.mock import patch
+
+        header = {"X-Doctor-Client-IP": "198.51.100.8"}
+        self.assertEqual(client_address("172.18.0.2", header, True), "198.51.100.8")
+        self.assertEqual(client_address("172.18.0.2", header, False), "172.18.0.2")
+        self.assertEqual(client_address("8.8.8.8", header, True), "8.8.8.8")
+        self.assertEqual(
+            client_address("172.18.0.2", {"X-Doctor-Client-IP": "bad,header"}, True),
+            "172.18.0.2",
+        )
+        with server.lock:
+            server.failures["198.51.100.8"] = [time.monotonic()] * 15
+
+        def login(address):
+            req = urllib.request.Request(
+                BASE + "/api/login",
+                data=json.dumps(
+                    {"username": "Unknown", "password": "unknown-pass"}
+                ).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Origin": BASE,
+                    "X-Doctor-Client-IP": address,
+                },
+            )
+            try:
+                with client().open(req) as response:
+                    return response.status
+            except urllib.error.HTTPError as error:
+                return error.code
+
+        with patch.object(server, "TRUST_PROXY", True):
+            self.assertEqual(login("198.51.100.8"), 429)
+            self.assertEqual(login("198.51.100.9"), 401)
+        with patch.object(server, "TRUST_PROXY", False):
+            self.assertEqual(login("198.51.100.8"), 401)
+
+    def test_expired_queue_and_cancel_after_pairing(self):
+        self.assertEqual(call(self.host, "queue", {"control": "5+0"})[0], 200)
+        with server.lock:
+            server.db.execute("UPDATE queue SET touched=?", (time.time() - 30,))
+        self.assertFalse(call(self.host, "state")[1]["queued"])
+        self.assertTrue(call(self.guest, "queue", {"control": "5+0"})[1]["queued"])
+        game = call(self.host, "queue", {"control": "5+0"})[1]["game"]
+        cancelled = call(self.guest, "cancel", {})[1]
+        self.assertEqual(cancelled["game"]["id"], game["id"])
+        self.assertIsNone(cancelled["game"]["result"])
+
+    def test_invalid_promotion_is_rejected_without_changing_game(self):
+        game = self.casual()
+        for promotion in ("r", "b", "n"):
+            self.assertEqual(
+                call(
+                    self.host,
+                    "move",
+                    {"game": game["id"], "from": 52, "to": 36, "promotion": promotion},
+                )[0],
+                400,
+            )
+        current = call(self.host, "state")[1]["game"]
+        self.assertEqual(current["moves"], [])
+        self.assertEqual(
+            call(
+                self.host,
+                "move",
+                {"game": game["id"], "from": 52, "to": 36, "promotion": "q"},
+            )[0],
+            200,
+        )
+
+
 class WatchIntegration(unittest.TestCase):
     setUp = SocialGames.setUp
     create = SocialGames.create

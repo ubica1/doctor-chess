@@ -4,5 +4,7 @@
         max_size 256KB
     }
     header X-Content-Type-Options nosniff
-    reverse_proxy app:4173
+    reverse_proxy app:4173 {
+        header_up X-Doctor-Client-IP {remote_host}
+    }
 }

@@ -184,6 +184,13 @@ class ChessBoardView {
       ? 'В своей тетради пометки сохраняются вместе с позицией. В чужой тетради доступен только просмотр.'
       : 'Пометки видны только вам и очищаются после хода. Диаграмму можно скачать вместе с пометками.';
     tools.append(storageNote);
+    tools.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        this.cancel();
+        this.setInkMode(false);
+        this.clearShapes();
+      }
+    });
     this.inkTools = tools;
     this.inkToggle = tools.querySelector('.ink-toggle');
     this.inkToggle.onclick = () => this.setInkMode(!this.inkMode);
@@ -203,6 +210,9 @@ class ChessBoardView {
     this.inkMode = !!value && this.inkEnabled;
     this.inkToggle.setAttribute('aria-pressed', String(this.inkMode));
     this.inkToggle.textContent = this.inkMode ? 'Рисуем · ходы выключены' : 'Рисовать';
+    this.inkTools.querySelector('summary').textContent = this.inkMode
+      ? '✎ Рисуем · ходы выключены'
+      : '✎ Пометки на доске';
     this.root.classList.toggle('ink-mode', this.inkMode);
   }
   setShapes(shapes = [], enabled = true, key = null) {
@@ -256,9 +266,9 @@ class ChessBoardView {
     if (!this.inkEnabled) return;
     const previous = this.shapes.find((mark) => mark.from === from && mark.to === to);
     if (!previous && this.shapes.length >= 64) {
+      this.paintShapes();
       this.inkTools.querySelector('.ink-count').textContent =
         'До 64 отметок на позицию. Уберите одну, чтобы добавить новую.';
-      this.paintShapes();
       return;
     }
     this.inkUndo.push(this.shapes.map((mark) => ({ ...mark })));

@@ -128,18 +128,18 @@ function updateGameReport() {
     reportRenderKey = '';
   }
   $('analyze-game').disabled =
-    !!active() || busy || botThinking || !line.records.length || reportRunning;
+    !!learningMatchActive() || busy || botThinking || !line.records.length || reportRunning;
   $('analyze-game').textContent = reportRunning
     ? 'Разбираем ' + reportProgress + ' / ' + Math.min(line.records.length, 200)
     : reportData?.rows.length === Math.min(line.records.length, 200) && line.records.length
       ? 'Пересчитать разбор'
       : 'Разобрать всю партию';
-  $('game-report').hidden = !reportData || key !== reportIdentity || !!active();
+  $('game-report').hidden = !reportData || key !== reportIdentity || !!learningMatchActive();
   if ($('game-report').hidden) return;
   $('report-cancel').hidden = !reportRunning;
   $('report-export').disabled = reportRunning || !reportData.rows.length;
   $('report-practice').disabled =
-    !!active() || !reportData.rows.some((r) => r.grade !== 'good' && r.best !== '—');
+    !!learningMatchActive() || !reportData.rows.some((r) => r.grade !== 'good' && r.best !== '—');
   $('report-next-error').disabled = !reportData.rows.some((r) => r.grade !== 'good');
   const renderKey = reportData.rows.length + ':' + reportRunning + ':' + reportIdentity;
   if (renderKey === reportRenderKey) return;
@@ -176,7 +176,14 @@ function updateGameReport() {
     );
 }
 async function analyzeWholeGame() {
-  if (active() || busy || botThinking || reportRunning || !currentLine().records.length) return;
+  if (
+    learningMatchActive() ||
+    busy ||
+    botThinking ||
+    reportRunning ||
+    !currentLine().records.length
+  )
+    return;
   cancelGameReport();
   const generation = reportGeneration,
     line = JSON.parse(JSON.stringify(currentLine()));
@@ -279,14 +286,19 @@ async function analyzeWholeGame() {
 function initializeGameReport() {
   $('report-practice').onclick = () => saveReportMistakes();
   $('report-next-error').onclick = () => {
-    if (active() || reportIdentity !== reportKey()) return;
+    if (learningMatchActive() || reportIdentity !== reportKey()) return;
     const mistakes = reportData.rows.filter((r) => r.grade !== 'good');
     const ply = reviewIndex ?? currentLine().records.length;
     const next = mistakes.find((r) => r.ply > ply) || mistakes[0];
     if (next) setReview(next.ply);
   };
   $('report-export').onclick = () => {
-    if (active() || reportRunning || reportIdentity !== reportKey() || !reportData?.rows.length)
+    if (
+      learningMatchActive() ||
+      reportRunning ||
+      reportIdentity !== reportKey() ||
+      !reportData?.rows.length
+    )
       return;
     const text = DoctorReport.annotatedPGN(
       currentLine(),

@@ -282,6 +282,8 @@ function showAcademy() {
   $('academy-retry').onclick = () =>
     loadAcademyExercise(DoctorAcademy.exercises.indexOf(academyExercise));
   $('academy-train').onclick = async () => {
+    if (learningMatchActive() || busy)
+      return toast('Сначала завершите сетевую партию или дождитесь подтверждения хода.');
     const position = JSON.parse(JSON.stringify(academyLine.positions[academyPly]));
     if (moves.length && !game) archiveCurrent(true);
     navigate('/');

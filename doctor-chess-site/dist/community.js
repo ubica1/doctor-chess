@@ -208,16 +208,11 @@ function editProfile(p) {
     }
   };
   $('logout').onclick = async () => {
+    networkEpoch++;
     try {
       await api('logout', {});
-      user = null;
-      remoteGame = null;
-      game = null;
-      queued = false;
-      resetBoard();
-      updateUser();
+      forgetAccount();
       $('modal').close();
-      render();
       routePage();
     } catch (e) {
       toast(e.message);

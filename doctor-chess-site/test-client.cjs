@@ -234,6 +234,18 @@ async function appTests() {
     (8 - Math.floor(m.to / 8));
   context.crypto = { randomUUID: () => 'test-local-game' };
   run("mode='computer';game=null;botSide='w';resetBoard();render()");
+  run("history=[s];s=apply(s,52,36);moves=['e4'];lineCache=null;askHint();scheduleBot()");
+  await run('analyzeWholeGame()');
+  assert.equal(workers.length, 0, 'background game blocks every engine entry point');
+  assert.equal(el.get('hint').disabled, true);
+  assert.equal(
+    el.get('live-game-notice').hidden,
+    false,
+    'active game remains visible outside its room'
+  );
+  run('remoteGame=null;resetBoard();render()');
+  networkGame = null;
+
   await run("makeMove(52,36,'q')");
   assert.equal(run('botThinking'), true);
   assert.equal(workers.length, 1);
@@ -366,7 +378,7 @@ async function appTests() {
     return 1;
   };
   run(
-    "stopStudy();game=null;mode='computer';botSide='w';resetBoard();$('modal').close();s=ChessNotation.fromPGN('1.f3 e5 2.g4 Qh4# *').positions.at(-1);render()"
+    "stopStudy();game=null;remoteGame=null;mode='computer';botSide='w';resetBoard();$('modal').close();s=ChessNotation.fromPGN('1.f3 e5 2.g4 Qh4# *').positions.at(-1);render()"
   );
   assert.equal(run("$('finish-title').textContent"), 'Вы проиграли');
   assert(
@@ -412,7 +424,9 @@ async function appTests() {
   const newHint = workers.at(-1);
   oldHint.onmessage({ data: { move: { from: 52, to: 36 }, score: 0 } });
   assert(!newHint.terminated, 'A late hint must not terminate a newer request');
-  run('stopStudy()');
+  run("remoteGame={id:'background',result:null};updateLearningSafety()");
+  assert(newHint.terminated, 'an active game cancels a hint that was already running');
+  run('remoteGame=null;stopStudy()');
   context.DoctorBook = require('./dist/doctor-book.js');
   run("game=null;mode='computer';resetBoard();botSide='b';scheduleBot();stopStudy();mode='local'");
   await new Promise((r) => setImmediate(r));
@@ -541,6 +555,49 @@ async function appTests() {
   assert.deepEqual(pageRequests, [1, 2, 2, 3]);
   pendingFetch = null;
   console.log('PASS: library pagination, retry, no duplicates and damaged local records');
+  run("stopStudy();game=null;remoteGame=null;mode='local';resetBoard()");
+  context.location = { pathname: '/review/deadbeef' };
+  context.communityRequest = 100;
+  let resolveReview;
+  pendingFetch = () =>
+    new Promise((done) => {
+      resolveReview = done;
+    });
+  const lateReview = run('loadReviewGame("deadbeef")');
+  context.location.pathname = '/players';
+  context.communityRequest++;
+  resolveReview({
+    ok: true,
+    json: async () => ({ game: { white: 'A', black: 'B', moves: [], result: 'draw', created: 1 } }),
+  });
+  await lateReview;
+  assert.equal(run('mode'), 'local', 'late review response must not replace a different page');
+  assert.equal(run('archiveInfo'), null);
+  delete context.location;
+  delete context.communityRequest;
+  pendingFetch = null;
+  console.log(
+    'PASS: background match blocks engines and delayed review cannot replace the current page'
+  );
+  run("user={id:'a',username:'Alpha',avatar:'crane',ratings:{blitz:{rating:1200}}};mode='online'");
+  let resolveOldSession;
+  pendingFetch = () =>
+    new Promise((done) => {
+      resolveOldSession = done;
+    });
+  const oldSessionPoll = run('poll()');
+  const oldAccount = run('user');
+  run('forgetAccount()');
+  resolveOldSession({
+    ok: true,
+    json: async () => ({ user: oldAccount, game: null, queued: false }),
+  });
+  await oldSessionPoll;
+  assert.equal(run('user'), null, 'late state response must not restore signed-out account');
+  assert.equal(run('remoteGame'), null);
+  pendingFetch = null;
+  console.log('PASS: signing out invalidates in-flight account state');
+
   console.log(
     'PASS: delayed result, cancellation on review/reset, manual details and stale request isolation'
   );
@@ -663,6 +720,7 @@ function boardTests() {
   b.undoShapes();
   assert.equal(b.shapes.length, 0);
   b.setInkMode(true);
+  assert(b.inkTools.querySelector('summary').textContent.includes('ходы выключены'));
   b.down(ev(350, 150));
   b.up(ev(350, 150));
   root.listeners.lostpointercapture({ pointerId: 1 });
@@ -676,7 +734,8 @@ function boardTests() {
   b.move(ev(250, 450));
   b.cancel();
   assert.equal(b.shapes.length, 1, 'cancelled gesture leaves saved drawings alone');
-  b.setInkMode(false);
+  b.inkTools.listeners.keydown({ key: 'Escape' });
+  assert.equal(b.inkMode, false, 'Escape also exits ink when focus is in its toolbar');
   b.down(ev(350, 350));
   b.up(ev(350, 350));
   assert.equal(b.shapes.length, 0, 'normal left click clears temporary drawings');

@@ -174,7 +174,9 @@ async function refreshWatchRoom(session) {
         '<div class="page-empty"><h1>Трансляция закрыта</h1><p>Для просмотра нужно согласие обоих игроков. Возможно, один из участников закрыл доступ.</p><button id="watch-reopen">Проверить ещё раз</button><a href="/watch">В зрительный зал →</a></div>';
       $('watch-reopen').onclick = () => {
         if (!session.pollTimer)
-          session.pollTimer = setInterval(() => refreshWatchRoom(session), 2000);
+          session.pollTimer = setInterval(() => {
+            if (document.visibilityState !== 'hidden') refreshWatchRoom(session);
+          }, 2000);
         refreshWatchRoom(session);
       };
     } else if (session.board) {
@@ -292,7 +294,14 @@ function updateWatchConsent() {
   $('spectator-actions').hidden = !visible;
   if (!visible) return;
   const consent = game.watch || {},
-    own = !!consent[game.you];
+    own = !!consent[game.you],
+    other = !!consent[game.you === 'w' ? 'b' : 'w'];
+  const summary = $('spectator-actions').querySelector('summary');
+  summary.textContent = consent.enabled
+    ? '● Зрители · трансляция открыта'
+    : other && !own
+      ? 'Соперник предлагает открыть трансляцию'
+      : 'Зрители у вашей доски';
   $('spectator-toggle').textContent = own ? 'Закрыть зрителям' : 'Разрешить зрителей';
   $('spectator-toggle').disabled = watchConsentBusy || busy;
   $('spectator-caption').textContent = consent.enabled
@@ -301,7 +310,9 @@ function updateWatchConsent() {
       : 'Трансляция открыта в зрительном зале.'
     : own
       ? 'Вы согласны · ждём согласия соперника.'
-      : 'Смотреть можно только после согласия обоих игроков.';
+      : other
+        ? 'Соперник уже согласен. Разрешить зрителей для этой партии?'
+        : 'Смотреть можно только после согласия обоих игроков.';
   $('spectator-link').hidden = !consent.enabled;
 }
 async function toggleWatchConsent() {
@@ -324,6 +335,14 @@ async function toggleWatchConsent() {
   }
 }
 function initializeWatching() {
+  const resume = () => {
+    if (!watching || document.visibilityState === 'hidden') return;
+    if (watching.kind === 'hall') refreshWatchHall(watching);
+    else if (!watching.game?.result && !watching.revoked) refreshWatchRoom(watching);
+  };
+  window.addEventListener('focus', resume);
+  window.addEventListener('online', resume);
+  document.addEventListener('visibilitychange', resume);
   $('nav-watch').onclick = () => navigate('/watch');
   $('spectator-toggle').onclick = toggleWatchConsent;
   $('spectator-link').onclick = async () => {

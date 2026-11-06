@@ -14,6 +14,7 @@ const node = (id) => {
       innerHTML: '',
       textContent: '',
       setAttribute() {},
+      querySelector: (selector) => node(id + selector),
     });
   return nodes.get(id);
 };
@@ -138,6 +139,9 @@ context.api = async () => ({ game: clone(fixture) });
   await run('toggleWatchConsent()');
   assert.equal(context.game.id, 'own', 'consent reply never rolls back board state');
   assert.equal(context.game.watch.w, true);
+  context.game.watch = { w: false, b: true, enabled: false };
+  run('updateWatchConsent()');
+  assert(node('spectator-actionssummary').textContent.includes('Соперник'));
   console.log(
     'PASS: isolated spectator boards, replay pinning, stale clocks, revocation/recovery, finish and late replies'
   );

@@ -59,13 +59,23 @@ function updateResume() {
     !!remoteGame.result ||
     (mode === 'online' && typeof location !== 'undefined' && gameRoute() === remoteGame.id);
   b.textContent = 'Вернуться в партию · ' + (remoteGame?.control || '') + ' →';
+  const notice = $('live-game-notice');
+  const away =
+    !!remoteGame &&
+    !remoteGame.result &&
+    !(mode === 'online' && typeof location !== 'undefined' && gameRoute() === remoteGame.id);
+  notice.hidden = !away;
+  if (away) {
+    $('live-game-link').href = '/game/' + remoteGame.id;
+    $('live-game-link').textContent = 'Вернуться · ' + remoteGame.control + ' →';
+  }
 }
 function canInteract() {
   return (
     reviewIndex === null &&
     !botThinking &&
     (mode !== 'analysis' || variationEditing) &&
-    (mode !== 'computer' || s.turn === botSide) &&
+    (mode !== 'computer' || (s.turn === botSide && !learningMatchActive())) &&
     !busy &&
     !queued &&
     !positionFinished &&
@@ -173,6 +183,16 @@ function show(title, html) {
 function active() {
   return game && !game.result;
 }
+function forgetAccount() {
+  networkEpoch++;
+  user = null;
+  remoteGame = null;
+  game = null;
+  queued = false;
+  resetBoard();
+  updateUser();
+  render();
+}
 function auth(register = false) {
   show(
     register ? 'Приятно познакомиться.' : 'С возвращением.',
@@ -182,11 +202,13 @@ function auth(register = false) {
   $('auth-form').onsubmit = async (e) => {
     e.preventDefault();
     $('auth-submit').disabled = true;
+    networkEpoch++;
     try {
       const x = await api(register ? 'register' : 'login', {
         username: $('auth-name').value,
         password: $('auth-password').value,
       });
+      networkEpoch++;
       user = x.user;
       $('modal').close();
       updateUser();
@@ -580,6 +602,7 @@ function acceptGame(g) {
   connectionReceived();
   remoteGame = g;
   if (mode !== 'online') {
+    updateLearningSafety();
     updateResume();
     return;
   }
@@ -697,7 +720,12 @@ async function changeMode(m) {
     toast('Сетевая партия продолжается. Вернуться можно кнопкой над режимами.');
   if (cancel) {
     try {
-      await api('cancel', {});
+      const cancellation = await api('cancel', {});
+      if (cancellation.game) {
+        remoteGame = cancellation.game;
+        updateLearningSafety();
+        updateResume();
+      }
     } catch (e) {
       toast(e.message);
     }
@@ -731,7 +759,8 @@ async function start() {
     busy = true;
     try {
       if (queued) {
-        await api('cancel', {});
+        const cancellation = await api('cancel', {});
+        if (cancellation.game) acceptGame(cancellation.game);
         queued = false;
         render();
       } else {

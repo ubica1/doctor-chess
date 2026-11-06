@@ -18,6 +18,8 @@ process.stdin.on('end', () => {
       !E.legal(s, i).includes(j)
     )
       throw Error('Недопустимый ход');
+    if (p !== 'q' && !(s.b[i].toLowerCase() === 'p' && (j < 8 || j >= 56)))
+      throw Error('Превращение возможно только для пешки на последней горизонтали');
     const next = E.apply(s, i, j, p),
       message = E.end(next, x.history || []);
     console.log(

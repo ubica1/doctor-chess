@@ -1,4 +1,4 @@
-import os, json, sqlite3, secrets, hashlib, hmac, time, re, threading, subprocess, random
+import os, json, sqlite3, secrets, hashlib, time, re, threading, subprocess, random
 from pathlib import Path
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from http.cookies import SimpleCookie
@@ -10,6 +10,7 @@ from presence import Presence
 from friendly import FriendlyActions
 from studies import Studies
 from watch import WatchGames
+from accounts import Accounts, client_address
 
 BASE = Path(__file__).resolve().parent
 PUBLIC_ORIGIN = os.environ.get("DOCTOR_CHESS_PUBLIC_ORIGIN", "").rstrip("/")
@@ -27,6 +28,7 @@ if PUBLIC_ORIGIN:
         raise ValueError(
             "DOCTOR_CHESS_PUBLIC_ORIGIN must be an HTTPS origin without a path"
         )
+TRUST_PROXY = os.environ.get("DOCTOR_CHESS_TRUST_PROXY") == "1"
 COOKIE_SECURE = "; Secure" if PUBLIC_ORIGIN else ""
 DB = Path(os.environ.get("DOCTOR_CHESS_DB", str(BASE / "data" / "chess.sqlite3")))
 DB.parent.mkdir(parents=True, exist_ok=True)
@@ -273,6 +275,8 @@ friendly = FriendlyActions(db, CONTROLS, game_row, public_game)
 studies = Studies(db, BASE)
 study_gate = threading.BoundedSemaphore(2)
 watch = WatchGames(db, game_row, profile)
+accounts = Accounts(db, failures)
+auth_gate = threading.BoundedSemaphore(2)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -448,6 +452,7 @@ class Handler(SimpleHTTPRequestHandler):
                             "SELECT id FROM games WHERE white=? OR black=? ORDER BY created DESC LIMIT 1",
                             (uid, uid),
                         ).fetchone()
+                    db.execute("DELETE FROM queue WHERE touched<?", (time.time() - 15,))
                     q = db.execute(
                         "SELECT * FROM queue WHERE user_id=?", (uid,)
                     ).fetchone()
@@ -507,6 +512,27 @@ class Handler(SimpleHTTPRequestHandler):
             self.received_at = time.time()
         except:
             return self.reply({"error": "Некорректный запрос"}, 400)
+        self.auth_prepared = None
+        if self.path in ("/api/register", "/api/login"):
+            try:
+                with lock:
+                    prepared = accounts.prepare(
+                        self.path,
+                        x,
+                        client_address(
+                            self.client_address[0], self.headers, TRUST_PROXY
+                        ),
+                    )
+                if not auth_gate.acquire(blocking=False):
+                    raise ClubError(
+                        "Вход сейчас занят. Повторите через несколько секунд.", 429
+                    )
+                try:
+                    self.auth_prepared = accounts.compute(prepared)
+                finally:
+                    auth_gate.release()
+            except ClubError as error:
+                return self.reply({"error": str(error)}, error.status)
         self.study_prepared = None
         study_match = re.fullmatch(r"/api/studies(?:/([a-f0-9]{24}))?", self.path)
         if study_match:
@@ -544,59 +570,7 @@ class Handler(SimpleHTTPRequestHandler):
         uid = self.user()
         presence.touch(uid)
         if route in ["/api/register", "/api/login"]:
-            key = self.client_address[0]
-            now = time.time()
-            attempts = [t for t in failures.get(key, []) if t > now - 60]
-            failures[key] = attempts
-            if len(attempts) >= 15:
-                return self.reply(
-                    {"error": "Слишком много попыток. Подождите минуту."}, 429
-                )
-            attempts.append(now)
-            username = x.get("username", "")
-            password = x.get("password", "")
-            if not isinstance(username, str) or not isinstance(password, str):
-                return self.reply({"error": "Имя и пароль должны быть строками"}, 400)
-            username = username.strip()
-            if (
-                not re.fullmatch(r"[\w-]{3,24}", username)
-                or not 8 <= len(password) <= 128
-            ):
-                return self.reply(
-                    {
-                        "error": "Имя: 3–24 буквы, цифры, _ или -. Пароль: 8–128 символов."
-                    },
-                    400,
-                )
-            if route == "/api/register":
-                if db.execute(
-                    "SELECT 1 FROM users WHERE username_key=?", (name_key(username),)
-                ).fetchone():
-                    return self.reply({"error": "Это имя уже занято"}, 409)
-                uid = secrets.token_hex(12)
-                salt = secrets.token_hex(16)
-                hashed = hashlib.pbkdf2_hmac(
-                    "sha256", password.encode(), bytes.fromhex(salt), 310000
-                ).hex()
-                db.execute(
-                    "INSERT INTO users(id,username,username_key,password,salt,created) VALUES(?,?,?,?,?,?)",
-                    (uid, username, name_key(username), hashed, salt, now),
-                )
-                for cat in ["bullet", "blitz", "rapid", "classical"]:
-                    db.execute(
-                        "INSERT INTO ratings(user_id,category) VALUES(?,?)", (uid, cat)
-                    )
-            else:
-                u = db.execute(
-                    "SELECT * FROM users WHERE username_key=?", (name_key(username),)
-                ).fetchone()
-                salt = u["salt"] if u else "00" * 16
-                hashed = hashlib.pbkdf2_hmac(
-                    "sha256", password.encode(), bytes.fromhex(salt), 310000
-                ).hex()
-                if not u or not hmac.compare_digest(hashed, u["password"]):
-                    return self.reply({"error": "Неверное имя или пароль"}, 401)
-                uid = u["id"]
+            uid = accounts.finish(self.auth_prepared)
             return self.reply({"user": profile(uid)}, cookie=self.session(uid))
         if not uid:
             return self.reply({"error": "Сначала войдите в профиль"}, 401)
@@ -683,7 +657,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply({"user": profile(uid)})
         if route == "/api/cancel":
             db.execute("DELETE FROM queue WHERE user_id=?", (uid,))
-            return self.reply({"ok": True})
+            running = club.active_for(uid)
+            return self.reply(
+                {"ok": True, "game": public_game(running, uid) if running else None}
+            )
         if route == "/api/queue":
             control = x.get("control")
             if control not in CONTROLS:

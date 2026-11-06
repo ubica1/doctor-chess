@@ -26,9 +26,9 @@ function updateWorkbench() {
   $('variation-label').textContent = branch
     ? 'Пробуем свой вариант. Исходная партия сохранена.'
     : 'Можно вернуться к исходной партии.';
-  $('study-from-game').disabled = busy || botThinking || !!active();
-  $('make-variation').disabled = busy || botThinking || !!active();
-  $('train-position').disabled = busy || botThinking || !!active();
+  $('study-from-game').disabled = busy || botThinking || !!learningMatchActive();
+  $('make-variation').disabled = busy || botThinking || !!learningMatchActive();
+  $('train-position').disabled = busy || botThinking || !!learningMatchActive();
   $('make-variation').textContent = branch ? 'Новый вариант отсюда' : 'Вариант на доске';
   if (branch) {
     $('status').textContent =
@@ -49,7 +49,7 @@ function updateWorkbench() {
   }
 }
 async function startVariation() {
-  if (active() || busy || botThinking) return;
+  if (learningMatchActive() || busy || botThinking) return;
   const position = JSON.parse(JSON.stringify(shownState())),
     origin = variationOrigin || snapshotDesk();
   await changeMode('analysis');
@@ -99,7 +99,7 @@ function returnOriginal() {
   if (mode === 'computer') scheduleBot();
 }
 async function trainFromPosition() {
-  if (active() || busy || botThinking) return;
+  if (learningMatchActive() || busy || botThinking) return;
   if (end(shownState(), [])) return toast('Выберите позицию, в которой игра ещё продолжается.');
   const position = JSON.parse(JSON.stringify(shownState())),
     origin = variationOrigin || snapshotDesk();

@@ -138,18 +138,20 @@ function updateStudioPanel() {
   document.querySelector('.classical').hidden = computer || analysis;
   if (computer) {
     $('new').textContent = botProblem ? 'Продолжить ход доктора →' : 'Новая партия';
-    $('new').disabled = busy;
+    $('new').disabled = busy || !!learningMatchActive();
     $('queue-note').textContent = botThinking
       ? 'Доктор обдумывает ответ…'
       : 'Можно взять ход назад и попросить подсказку.';
-    $('status').textContent = botThinking
-      ? 'Доктор думает…'
-      : end(s, history) ||
-        (s.turn === botSide
-          ? moves.length
-            ? 'Ваш ход. Без спешки.'
-            : 'Вы играете ' + (botSide === 'w' ? 'белыми' : 'чёрными') + '. Сделайте ход.'
-          : 'Ход доктора');
+    $('status').textContent = learningMatchActive()
+      ? 'Сетевая партия продолжается · тренировка доступна после её завершения'
+      : botThinking
+        ? 'Доктор думает…'
+        : end(s, history) ||
+          (s.turn === botSide
+            ? moves.length
+              ? 'Ваш ход. Без спешки.'
+              : 'Вы играете ' + (botSide === 'w' ? 'белыми' : 'чёрными') + '. Сделайте ход.'
+            : 'Ход доктора');
     $('undo').disabled =
       busy || !history.length || (history.length === 1 && history[0].turn !== botSide);
   }
@@ -171,9 +173,9 @@ function updateStudioPanel() {
         : mode === 'analysis'
           ? 'Выбирайте ходы или используйте стрелки.'
           : 'Вернитесь в текущую позицию, чтобы играть.');
-  $('hint').disabled = busy || botThinking || !!active();
-  $('hint').title = active()
-    ? 'Подсказки доступны после завершения рейтинговой партии'
+  $('hint').disabled = busy || botThinking || !!learningMatchActive();
+  $('hint').title = learningMatchActive()
+    ? 'Подсказки доступны после завершения сетевой партии'
     : 'Разбор Stockfish 19 Lite · лучший ход и продолжение';
   $('export-pgn').disabled = !currentLine().records.length;
   $('save-game').disabled = !currentLine().records.length;
@@ -239,6 +241,11 @@ function stopStudy() {
   if ($('hint-note')) $('hint-note').textContent = '';
   $('coach-panel').hidden = true;
 }
+function suspendTrainingForGame() {
+  if (!learningMatchActive()) return;
+  if (botThinking || botWorker || hintWorker) stopStudy();
+  if (reportRunning) cancelGameReport();
+}
 function enginePosition() {
   const line = currentLine();
   return (
@@ -259,7 +266,15 @@ function enginePosition() {
   );
 }
 function scheduleBot() {
-  if (mode !== 'computer' || s.turn === botSide || end(s, history) || botThinking || busy) return;
+  if (
+    learningMatchActive() ||
+    mode !== 'computer' ||
+    s.turn === botSide ||
+    end(s, history) ||
+    botThinking ||
+    busy
+  )
+    return;
   botThinking = true;
   botProblem = false;
   const generation = ++botGeneration,
@@ -347,7 +362,7 @@ function scheduleBot() {
   }
 }
 function askHint() {
-  if (active() || botThinking || busy) return;
+  if (learningMatchActive() || botThinking || busy) return;
   hintWorker?.terminate();
   const request = ++hintGeneration;
   const board = shownState(),
@@ -576,6 +591,8 @@ async function openLibrary() {
   await loadPage();
 }
 async function openLocalReview(id) {
+  if (learningMatchActive() || busy)
+    return toast('Завершите свою сетевую партию, чтобы открыть разбор.');
   const r = savedGames().find((g) => g.id === id);
   if (!r) return;
   try {
@@ -600,16 +617,25 @@ async function openLocalReview(id) {
   }
 }
 async function loadReviewGame(id) {
+  const request = typeof communityRequest === 'undefined' ? null : communityRequest,
+    path = typeof location === 'undefined' ? null : location.pathname,
+    current = () =>
+      (request === null || request === communityRequest) &&
+      (path === null || path === location.pathname);
   if (typeof learningMatchActive === 'function' && learningMatchActive()) {
     toast('Завершите свою сетевую партию, чтобы открыть разбор.');
     navigate('/');
     return;
   }
   try {
-    const data = await api('games/' + encodeURIComponent(id)),
-      g = data.game,
+    const data = await api('games/' + encodeURIComponent(id));
+    if (!current()) return;
+    if (learningMatchActive() || busy)
+      throw Error('Сначала завершите сетевую партию или дождитесь подтверждения хода.');
+    const g = data.game,
       line = ChessNotation.replay(initial(), g.moves);
     await changeMode('analysis');
+    if (!current()) return;
     archiveInfo = {
       white: g.white,
       black: g.black,
@@ -626,6 +652,7 @@ async function loadReviewGame(id) {
     document.title = 'Разбор партии · Doctor Chess';
     render();
   } catch (e) {
+    if (!current()) return;
     toast(e.message);
     navigate('/');
   }
