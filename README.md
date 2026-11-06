@@ -4,9 +4,9 @@
 
 <p align="center"><a href="https://doctor-chess.ru"><b>Играть в Doctor Chess ↗</b></a> · <a href="https://doctor-chess.ru/academy">Школа Доктора</a> · <a href="https://github.com/ubica1/doctor-chess/issues">Обратная связь</a></p>
 
-<p align="center"><a href="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml"><img src="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml/badge.svg" alt="Проверки качества"></a> <img src="https://img.shields.io/badge/release-1.1.0-B92D28?style=flat-square" alt="Doctor Chess 1.1.0"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-BD913E?style=flat-square" alt="GNU GPLv3"></a></p>
+<p align="center"><a href="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml"><img src="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml/badge.svg" alt="Проверки качества"></a> <img src="https://img.shields.io/badge/release-1.1.1-B92D28?style=flat-square" alt="Doctor Chess 1.1.1"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-BD913E?style=flat-square" alt="GNU GPLv3"></a></p>
 
-**Doctor Chess** — шахматный веб-клуб с открытым исходным кодом. Красно-белая доска в золотой раме, китайские орнаменты и маленький доктор в наушниках создают атмосферу, в которой хочется сыграть ещё одну партию.
+**Doctor Chess** — шахматный веб-клуб. Красно-белая доска в золотой раме, китайские орнаменты и маленький доктор в наушниках создают атмосферу, в которой хочется сыграть ещё одну партию.
 
 Играйте в браузере на компьютере, планшете или телефоне. Для партий с людьми нужен профиль; тренировка с доктором доступна без регистрации.
 
@@ -56,9 +56,9 @@
 
 Подробнее: [данные и безопасность](SECURITY.md).
 
-## Открытый исходный код
+## Репозиторий и лицензии
 
-Код Doctor Chess опубликован под [GNU GPLv3](LICENSE). Можно изучать приложение, изменять его и распространять с соблюдением условий лицензии. Замечания и предложения принимаются в [Issues](https://github.com/ubica1/doctor-chess/issues); изменения — через pull request.
+Репозиторий Doctor Chess закрыт; доступ предоставляется его участникам. Условия использования кода описаны в [лицензии](LICENSE). Замечания и предложения принимаются в [Issues](https://github.com/ubica1/doctor-chess/issues); изменения — через pull request.
 
 Stockfish распространяется с собственной лицензией, указанием авторов, соответствующими исходниками и нейросетью. [Сторонние компоненты](NOTICE.md) · [Stockfish](doctor-chess-site/dist/vendor/stockfish/README.md).
 

@@ -1,6 +1,6 @@
 # Участие в Doctor Chess
 
-Doctor Chess — открытое шахматное приложение. Предложения, исправления и улучшения интерфейса принимаются через [Issues](https://github.com/ubica1/doctor-chess/issues) и pull request.
+Материал для участников закрытого репозитория Doctor Chess. Предложения, исправления и улучшения интерфейса принимаются через [Issues](https://github.com/ubica1/doctor-chess/issues) и pull request.
 
 ## Обратная связь
 
