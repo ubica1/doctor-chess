@@ -3010,3 +3010,78 @@ select:focus-visible {
   background: #f5e5be;
   border-color: #aa813b;
 }
+
+/* Ink sits above pieces without stealing their pointer events. */
+.board-ink-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+}
+.board-ink-layer > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ink-mode,
+.ink-mode .sq,
+.ink-mode .sq.movable {
+  cursor: crosshair;
+}
+.board-ink-tools {
+  margin: 10px 0 18px;
+  color: #775d36;
+  font-size: 14px;
+}
+.board-ink-tools summary {
+  cursor: pointer;
+  width: fit-content;
+  padding: 7px 0;
+  color: var(--red-dark);
+}
+.ink-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 0;
+  align-items: center;
+}
+.ink-controls button,
+.ink-controls select {
+  font: inherit;
+  min-height: 38px;
+  background: #fff8e8;
+  border: 1px solid #cbb47f;
+  border-radius: 4px;
+  color: #795733;
+  padding: 7px 10px;
+}
+.ink-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ink-controls .ink-toggle[aria-pressed='true'] {
+  color: #fff8e8;
+  background: var(--red-dark);
+  border-color: var(--red-dark);
+}
+.ink-controls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.board-ink-tools .ink-help {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 4px 0 9px;
+}
+.board-ink-tools .ink-count {
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .ink-controls button,
+  .ink-controls select {
+    min-height: 44px;
+  }
+}

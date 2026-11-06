@@ -196,6 +196,16 @@ async function loadNotebook(id) {
     notebookBoard = new ChessBoardView($('study-board'), {
       piece,
       onClick: notebookSquare,
+      autoClear: false,
+      onShapes: (shapes) => {
+        if (!notebook?.own || notebook.saving) return;
+        notebookCheckpoint();
+        const node = notebook.tree.byId.get(notebook.current);
+        if (shapes.length) node.shapes = shapes;
+        else delete node.shapes;
+        notebookChanged();
+        renderNotebook();
+      },
       onPick: (i) => {
         if (notebook) {
           notebook.selected = i;
@@ -240,6 +250,7 @@ function renderNotebookBoard() {
   if (!notebook || !notebookBoard) return;
   const state = notebook.tree.positions.get(notebook.current),
     node = notebook.tree.byId.get(notebook.current);
+  notebookBoard.setShapes(node.shapes || [], notebook.own && !notebook.saving, notebook.current);
   notebookBoard.render(
     state,
     notebook.flipped,

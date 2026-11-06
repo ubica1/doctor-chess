@@ -869,6 +869,7 @@ class StudiesIntegration(unittest.TestCase):
                         "move": None,
                         "comment": "План",
                         "nag": 0,
+                        "shapes": [{"from": 52, "to": 36, "color": "green"}],
                     },
                     {
                         "id": "n1",
@@ -926,6 +927,10 @@ class StudiesIntegration(unittest.TestCase):
         shared = call(self.anon, "studies/" + sid)[1]["study"]
         self.assertFalse(shared["own"])
         self.assertEqual(shared["document"]["nodes"][1]["comment"], "Центр")
+        self.assertEqual(
+            shared["document"]["nodes"][0]["shapes"],
+            data["document"]["nodes"][0]["shapes"],
+        )
         self.assertNotIn("owner", shared)
         self.assertNotIn("clientKey", shared)
         self.assertEqual(
@@ -977,12 +982,28 @@ class StudiesIntegration(unittest.TestCase):
         self.assertEqual(call(self.host, "studies", dict(data, title=[]))[0], 400)
         self.assertEqual(call(self.host, "studies", dict(data, public="yes"))[0], 400)
         self.assertEqual(call(self.host, "studies", dict(data, clientKey=True))[0], 400)
-        for change in ["cycle", "illegal", "note", "missing", "fen"]:
+        for change in [
+            "cycle",
+            "illegal",
+            "note",
+            "missing",
+            "fen",
+            "shape",
+            "shape_limit",
+        ]:
             bad = json.loads(json.dumps(data))
             if change == "cycle":
                 bad["document"]["nodes"][1]["parent"] = "n2"
             if change == "illegal":
                 bad["document"]["nodes"][1]["move"]["to"] = 20
+            if change == "shape":
+                bad["document"]["nodes"][0]["shapes"] = [
+                    {"from": 52, "to": 100, "color": "red"}
+                ]
+            if change == "shape_limit":
+                bad["document"]["nodes"][0]["shapes"] = [
+                    {"from": 1, "to": 2, "color": "red"}
+                ] * 65
             if change == "note":
                 bad["document"]["nodes"][0]["comment"] = "x" * 2001
             if change == "missing":

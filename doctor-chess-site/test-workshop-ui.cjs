@@ -62,6 +62,7 @@ const context = vm.createContext({
       boards.set(root.id, options);
     }
     render() {}
+    setShapes() {}
     destroy() {}
   },
   communityShell() {},
@@ -98,6 +99,15 @@ context.fixtureDocument = doc;
   run('studySeed={document:fixtureDocument,title:"Тетрадь A"}');
   await run('loadNotebook("new")');
   assert.equal(run('notebook.tree.document.nodes.length'), 4);
+  boards.get('study-board').onShapes([{ from: 52, to: 36, color: 'green' }]);
+  assert.equal(run('notebook.tree.byId.get("root").shapes[0].color'), 'green');
+  assert(run('notebook.dirty'));
+  assert.equal(
+    JSON.parse(context.localStorage.getItem('dc-study-draft:owner-a:new')).document.nodes[0].shapes
+      .length,
+    1
+  );
+
   const payloads = [];
   context.api = async (_path, payload) => {
     payloads.push(clone(payload));

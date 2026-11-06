@@ -49,6 +49,29 @@ const StudyTree = (() => {
         comment: raw.comment,
         nag: raw.nag,
       };
+      if (raw.shapes !== undefined) {
+        if (!Array.isArray(raw.shapes) || raw.shapes.length > 64)
+          throw Error('До 64 отметок на позицию.');
+        const keys = new Set();
+        const shapes = raw.shapes.map((mark) => {
+          if (
+            !mark ||
+            !Number.isInteger(mark.from) ||
+            !Number.isInteger(mark.to) ||
+            mark.from < 0 ||
+            mark.from > 63 ||
+            mark.to < 0 ||
+            mark.to > 63 ||
+            !['green', 'red', 'gold', 'blue'].includes(mark.color)
+          )
+            throw Error('Некорректная отметка на доске.');
+          const key = mark.from + ':' + mark.to;
+          if (keys.has(key)) throw Error('Отметка на доске повторяется.');
+          keys.add(key);
+          return { from: mark.from, to: mark.to, color: mark.color };
+        });
+        if (shapes.length) node.shapes = shapes;
+      }
       byId.set(node.id, node);
       return node;
     });
@@ -158,11 +181,21 @@ const StudyTree = (() => {
     const headers = { Event: title, Site: 'https://doctor-chess.ru', Result: '*' };
     if (tree.document.start !== N.fen(E.initial()))
       Object.assign(headers, { SetUp: '1', FEN: tree.document.start });
-    const note = (node) =>
-      (node.nag ? ' $' + node.nag : '') +
-      (node.comment
-        ? ' {' + node.comment.replace(/[{}]/g, (c) => (c === '{' ? '(' : ')')) + '}'
-        : '');
+    const square = (i) => 'abcdefgh'[i % 8] + (8 - Math.floor(i / 8));
+    const note = (node) => {
+      const colors = { green: 'G', red: 'R', gold: 'Y', blue: 'B' },
+        arrows = [],
+        circles = [];
+      for (const mark of node.shapes || []) {
+        if (mark.from === mark.to) circles.push(colors[mark.color] + square(mark.from));
+        else arrows.push(colors[mark.color] + square(mark.from) + square(mark.to));
+      }
+      const parts = [node.comment.replace(/[{}]/g, (c) => (c === '{' ? '(' : ')'))];
+      if (arrows.length) parts.push('[%cal ' + arrows.join(',') + ']');
+      if (circles.length) parts.push('[%csl ' + circles.join(',') + ']');
+      const content = parts.filter(Boolean).join(' ');
+      return (node.nag ? ' $' + node.nag : '') + (content ? ' {' + content + '}' : '');
+    };
     function sequence(parent, chosen) {
       const ids = tree.children.get(parent) || [],
         id = chosen || ids[0];
@@ -211,7 +244,25 @@ const StudyTree = (() => {
         const end = rest.indexOf('}');
         if (end < 0) throw Error('Незакрытая заметка в PGN.');
         const node = document.nodes.find((n) => n.id === current);
-        node.comment = (node.comment ? node.comment + '\n' : '') + rest.slice(1, end).trim();
+        const colors = { G: 'green', R: 'red', Y: 'gold', B: 'blue' },
+          index = (s) => (8 - Number(s[1])) * 8 + 'abcdefgh'.indexOf(s[0]);
+        const text = rest
+          .slice(1, end)
+          .replace(/\[%c(al|sl)\s+([^\]]*)\]/g, (directive, kind, values) => {
+            const entries = values.split(',').map((value) => value.trim());
+            const pattern = kind === 'al' ? /^[GRYB][a-h][1-8][a-h][1-8]$/ : /^[GRYB][a-h][1-8]$/;
+            if (!entries.every((entry) => pattern.test(entry))) return directive;
+            node.shapes ||= [];
+            for (const value of entries) {
+              const from = index(value.slice(1, 3)),
+                to = kind === 'al' ? index(value.slice(3, 5)) : from;
+              node.shapes = node.shapes.filter((mark) => mark.from !== from || mark.to !== to);
+              node.shapes.push({ from, to, color: colors[value[0]] });
+            }
+            return '';
+          })
+          .trim();
+        if (text) node.comment = (node.comment ? node.comment + '\n' : '') + text;
         rest = rest.slice(end + 1);
         continue;
       }

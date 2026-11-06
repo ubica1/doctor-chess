@@ -121,3 +121,45 @@ assert.equal(N.fen(E.initial()), T.create().start);
 console.log(
   'PASS: personal mistake deduplication, assisted attempts, scheduling and damaged storage'
 );
+
+const marked = T.create();
+marked.nodes[0].comment = 'План центра';
+marked.nodes[0].shapes = [
+  { from: 52, to: 36, color: 'green' },
+  { from: 36, to: 36, color: 'red' },
+  { from: 62, to: 45, color: 'gold' },
+  { from: 28, to: 28, color: 'blue' },
+];
+const markedPGN = T.pgn(marked);
+assert(markedPGN.includes('[%cal Ge2e4,Yg1f3]'));
+assert(markedPGN.includes('[%csl Re4,Be5]'));
+const restoredMarks = T.fromPGN(markedPGN).document;
+assert.equal(restoredMarks.nodes[0].comment, 'План центра');
+const ordered = (marks) => marks.slice().sort((a, b) => a.from - b.from || a.to - b.to);
+assert.deepEqual(ordered(restoredMarks.nodes[0].shapes), ordered(marked.nodes[0].shapes));
+const markedBranch = T.fromPGN('1.e4 {[%cal Re4e5]} (1.d4 {[%csl Bd4]}) *');
+assert.equal(markedBranch.document.nodes[1].shapes[0].color, 'red');
+assert.equal(markedBranch.document.nodes[2].shapes[0].from, 35);
+assert.deepEqual(
+  shape(T.fromPGN(T.pgn(markedBranch.document)).document),
+  shape(markedBranch.document)
+);
+for (const shapes of [
+  [{ from: 64, to: 0, color: 'red' }],
+  [{ from: 1.2, to: 4, color: 'green' }],
+  [{ from: 1, to: 4, color: '<script>' }],
+  [
+    { from: 1, to: 4, color: 'red' },
+    { from: 1, to: 4, color: 'blue' },
+  ],
+  Array(65).fill({ from: 1, to: 2, color: 'green' }),
+  'bad',
+]) {
+  const invalid = clone(marked);
+  invalid.nodes[0].shapes = shapes;
+  assert.throws(() => T.read(invalid));
+}
+assert.equal(T.fromPGN('{[%cal not-an-arrow]} *').document.nodes[0].comment, '[%cal not-an-arrow]');
+console.log(
+  'PASS: annotated PGN arrows/circles round trips, branch ownership and hostile/oversized marks'
+);

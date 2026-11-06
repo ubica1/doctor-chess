@@ -589,7 +589,7 @@ function boardTests() {
   const node = b.nodes.get(52);
   b.render(state, false, 52, [44, 36], []);
   assert.equal(b.nodes.get(52), node);
-  assert.equal(root.children.length, 65, 'no square replacement');
+  assert.equal(root.children.length, 66, 'stable squares, pieces and ink layers');
   const ev = (x, y) => ({
     isPrimary: true,
     button: 0,
@@ -635,6 +635,77 @@ function boardTests() {
     mateCell.querySelector('.mate-marker').hidden,
     true,
     'Reviewing a non-mate position clears the marker'
+  );
+  // A right-button gesture annotates, never picks or moves a piece.
+  const right = (x, y, extra = {}) => ({ ...ev(x, y), button: 2, ...extra });
+  dropped = null;
+  clicked = null;
+  b.render(state, false, -1, [], []);
+  b.down(right(450, 650));
+  b.move(right(450, 450));
+  b.up(right(450, 450));
+  assert.equal(dropped, null);
+  assert.equal(clicked, null);
+  assert.deepEqual(JSON.parse(JSON.stringify(b.shapes)), [{ from: 52, to: 36, color: 'green' }]);
+  assert(b.inkLayer.innerHTML.includes('<path'));
+  b.render(state, false, 36, [], []);
+  assert.equal(b.shapes.length, 1, 'selection and heartbeats preserve annotations');
+  b.render(state, true, -1, [], []);
+  assert(b.inkLayer.innerHTML.includes('M350 150'), 'flip mirrors arrow coordinates');
+  b.down(right(350, 150));
+  b.up(right(350, 350));
+  assert.equal(b.shapes.length, 0, 'repeating an arrow toggles it off');
+  b.down(right(350, 350, { altKey: true }));
+  b.up(right(350, 350, { altKey: true }));
+  assert.equal(b.shapes[0].from, b.shapes[0].to);
+  assert.equal(b.shapes[0].color, 'red');
+  b.undoShapes();
+  assert.equal(b.shapes.length, 0);
+  b.setInkMode(true);
+  b.down(ev(350, 150));
+  b.up(ev(350, 150));
+  root.listeners.lostpointercapture({ pointerId: 1 });
+  assert.notEqual(b.inkAnchor, null, 'completed first tap survives normal capture release');
+  assert.equal(b.shapes.length, 0, 'first touch waits for a destination');
+  b.down(ev(350, 350));
+  b.up(ev(350, 350));
+  assert.equal(b.shapes.length, 1, 'second touch completes the arrow');
+  assert.equal(dropped, null, 'drawing mode cannot play moves');
+  b.down(ev(250, 250));
+  b.move(ev(250, 450));
+  b.cancel();
+  assert.equal(b.shapes.length, 1, 'cancelled gesture leaves saved drawings alone');
+  b.setInkMode(false);
+  b.down(ev(350, 350));
+  b.up(ev(350, 350));
+  assert.equal(b.shapes.length, 0, 'normal left click clears temporary drawings');
+  b.setShapes([{ from: 36, to: 36, color: 'blue' }], true, 'saved-node');
+  b.autoClear = false;
+  b.down(ev(350, 350));
+  b.up(ev(350, 350));
+  assert.equal(b.shapes.length, 1, 'saved study drawings survive piece selection');
+  b.setShapes(b.shapes, false, 'saved-node');
+  b.down(right(100, 100));
+  b.up(right(100, 100));
+  assert.equal(b.shapes.length, 1, 'read-only study cannot mutate saved drawings');
+  assert.equal(b.root.hasPointerCapture(1), false, 'blocked gesture releases capture');
+  const svg = b.diagramSVG();
+  assert(svg.includes('Doctor Chess') && svg.includes('#3279b9') && svg.includes('<rect'));
+  assert.equal(
+    (svg.match(/width="100" height="100"/g) || []).length,
+    64,
+    'diagram contains full board'
+  );
+  assert.equal(
+    Board.cleanShapes([
+      { from: -1, to: 90, color: 'red' },
+      { from: 1, to: 2, color: 'url(x)' },
+      null,
+    ]).length,
+    0
+  );
+  console.log(
+    'PASS: arrows, circles, colors, mirrored board, touch mode, cancellation, read-only marks and diagram export'
   );
   b.destroy();
   assert.deepEqual(removedEvents, ['blur'], 'Destroyed school boards release their window handler');
