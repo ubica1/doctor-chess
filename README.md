@@ -82,10 +82,10 @@
 
 ## Репозиторий и лицензии
 
-Репозиторий Doctor Chess закрыт; доступ предоставляется его участникам. Условия использования кода описаны в [лицензии](LICENSE). Замечания и предложения принимаются в [Issues](https://github.com/ubica1/doctor-chess/issues); изменения — через pull request.
+Исходный код Doctor Chess доступен на [GitHub](https://github.com/ubica1/doctor-chess). Условия использования кода описаны в [лицензии](LICENSE). Замечания и предложения принимаются в [Issues](https://github.com/ubica1/doctor-chess/issues); изменения — через pull request.
 
 Stockfish распространяется с собственной лицензией, указанием авторов, соответствующими исходниками и нейросетью. [Сторонние компоненты](NOTICE.md) · [Stockfish](doctor-chess-site/dist/vendor/stockfish/README.md).
 
-[Участие](CONTRIBUTING.md) · [Архитектура](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Руководство по тренировкам](docs/DOCTOR.md) · [История версий](CHANGELOG.md) · [Ревью качества](docs/REVIEW-2026-11-06.md)
+[Участие](CONTRIBUTING.md) · [Архитектура](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Руководство по тренировкам](docs/DOCTOR.md) · [Релизы](https://github.com/ubica1/doctor-chess/releases) · [История версий](CHANGELOG.md) · [Ревью качества](docs/REVIEW-2026-11-06.md)
 
 <p align="center">棋友 · По одной партии за раз.</p>

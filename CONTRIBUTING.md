@@ -1,6 +1,6 @@
 # Участие в Doctor Chess
 
-Материал для участников закрытого репозитория Doctor Chess. Предложения, исправления и улучшения интерфейса принимаются через [Issues](https://github.com/ubica1/doctor-chess/issues) и pull request.
+Как предложить изменение в Doctor Chess. Предложения, исправления и улучшения интерфейса принимаются через [Issues](https://github.com/ubica1/doctor-chess/issues) и pull request.
 
 ## Обратная связь
 
