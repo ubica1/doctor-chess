@@ -300,7 +300,7 @@ nav button.nav-active {
 .card-label b {
   color: var(--red);
 }
-.play-card h2 {
+.play-card-title {
   font: 28px var(--serif);
   color: var(--red-dark);
   margin: 19px 0;
@@ -1037,7 +1037,7 @@ textarea {
   .play-card {
     padding: 25px;
   }
-  .play-card h2 {
+  .play-card-title {
     font-size: 30px;
   }
   .mode-tabs button {
@@ -2310,104 +2310,45 @@ select:focus-visible {
 #game-page.lobby .game-report {
   display: none;
 }
-.welcome-seal,
-.welcome-cloud {
+.lobby-preview {
   display: none;
 }
 #game-page.lobby:not([hidden]) {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 1.18fr) minmax(0, 1fr);
   align-items: start;
-  gap: 28px;
-  max-width: 1200px;
-  padding-block-start: clamp(20px, 4vw, 48px);
+  gap: 28px clamp(24px, 5vw, 64px);
+  max-width: 1100px;
+  padding-block-start: clamp(22px, 4vw, 52px);
 }
-#game-page.lobby .welcome {
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 24px;
-  overflow: hidden;
-  padding: clamp(32px, 4vw, 56px);
-  border: 1px solid #772218;
-  border-radius: 5px 5px 12px 5px;
-  background: #932d25;
-  background-image: repeating-linear-gradient(110deg, #fff2ce09 0 1px, transparent 1px 5px);
-  box-shadow:
-    0 4px 0 #62251b,
-    0 13px 22px #50231726;
-}
-#game-page.lobby .welcome::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: 11px;
-  border: 4px double #d0a365;
-  border-radius: 2px 2px 8px 2px;
-}
-.lobby .welcome-seal {
-  display: inline-block;
-  padding: 5px 9px;
-  border: 1px solid #efd59d;
-  transform: rotate(-5deg);
-  color: #fff0c9;
-  font: 19px/1.25 var(--serif);
-}
-#game-page.lobby .welcome h1 {
-  margin: 17px 0 12px;
-  color: #fff5dd;
-  font: clamp(42px, 5vw, 70px) / 0.99 var(--serif);
-  letter-spacing: -0.04em;
-}
-#game-page.lobby .welcome p {
-  max-width: 26ch;
-  margin: 0;
-  color: #ffe5c5;
-  font-size: 17px;
-  line-height: 1.5;
-}
-.lobby .welcome-cloud {
-  position: absolute;
-  z-index: -1;
-  right: -28px;
-  bottom: 19%;
+#game-page.lobby .lobby-preview {
   display: block;
-  width: 45%;
-  fill: none;
-  stroke: #f4d394;
-  stroke-width: 1.4;
-  opacity: 0.42;
+  width: min(100%, 370px);
+  justify-self: center;
+  margin-block-start: 8px;
 }
-#game-page.lobby .welcome .doctor-mark {
+.lobby-preview .board-frame {
+  padding: clamp(10px, 2vw, 18px);
+}
+#lobby-board {
   display: grid;
-  place-items: center;
-  align-self: center;
-  width: clamp(150px, 19vw, 208px);
-  min-width: 0;
-  height: auto;
+  grid-template: repeat(8, minmax(0, 1fr)) / repeat(8, minmax(0, 1fr));
   aspect-ratio: 1;
-  margin-block: 4px 16px;
-  border: 1px solid #d8ad6d;
-  border-radius: 50%;
-  background: repeating-radial-gradient(circle, #381c1a 0 5px, #59342b 6px 7px, #381c1a 8px);
-  box-shadow: 0 5px 0 #671e19;
 }
-#game-page.lobby .doctor-mark svg {
-  width: 78%;
-  height: auto;
-  transform: rotate(5deg);
+.lobby-doctor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-block-start: 21px;
 }
-#game-page.lobby .doctor-mark > span {
-  bottom: 2px;
-  right: -14px;
-  padding: 4px 11px;
-  border: 1px solid #e6c488;
-  color: #662820;
-  background: #f3dcad;
-  box-shadow: 0 2px 0 #371c1a66;
-  font-size: 17px;
+.lobby-doctor strong {
+  font: 21px var(--serif);
+  color: var(--red-dark);
+}
+.lobby-doctor p {
+  margin: 3px 0 0;
+  color: #6e523c;
+  font-size: 14px;
 }
 #game-page.lobby .room {
   display: block;
@@ -2417,27 +2358,40 @@ select:focus-visible {
   display: block;
 }
 #game-page.lobby #game-settings {
-  padding: clamp(16px, 3vw, 30px);
-  background: #fffaf0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
-#game-page.lobby #game-settings summary {
+#game-page.lobby #game-settings summary,
+#game-page.lobby #game-settings::before {
   display: none;
 }
-.lobby .play-card h2 {
-  margin: 0 0 4px;
-  font-size: clamp(28px, 3vw, 40px);
+.lobby .play-card-title {
+  margin: 0 0 8px;
+  font-size: clamp(34px, 4.5vw, 50px);
+  letter-spacing: -0.025em;
 }
 .lobby .lobby-summary,
 .lobby .control-label,
 .lobby .queue-note {
   color: #6e523c;
 }
+.lobby .mode-tabs {
+  background: transparent;
+  gap: 7px;
+  padding: 0;
+}
 .lobby .mode-tabs button {
+  border: 1px solid #d2b88f;
+  background: #fffaf0;
   color: #654535;
   font-size: 14px;
 }
 .lobby .mode-tabs button.selected {
-  color: #fff8e7;
+  background: #f8e6d8;
+  border-color: var(--red);
+  color: var(--red-dark);
 }
 .lobby .control-label {
   font-size: 14px;
@@ -2455,6 +2409,7 @@ select:focus-visible {
   min-height: 48px;
   font-weight: 600;
   font-size: 16px;
+  text-align: center;
 }
 .lobby .friend-game,
 .lobby .classical,
@@ -2489,23 +2444,9 @@ select:focus-visible {
     grid-template-columns: minmax(0, 1fr);
     gap: 18px;
   }
-  #game-page.lobby .welcome {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 10px;
-    padding: clamp(24px, 5vw, 36px);
-  }
-  #game-page.lobby .welcome::before {
-    inset: 7px;
-    border-width: 3px;
-  }
-  #game-page.lobby .welcome h1 {
-    margin-block: 10px;
-    font-size: clamp(30px, 7vw, 48px);
-  }
-  #game-page.lobby .welcome p {
-    font-size: 14px;
+  #game-page.lobby .lobby-preview {
+    width: min(100%, 300px);
+    margin-block-start: 0;
   }
   .lobby .lobby-summary {
     margin-bottom: 12px;
@@ -2513,25 +2454,8 @@ select:focus-visible {
   .lobby .bot-settings label {
     margin-top: 10px;
   }
-  .lobby .welcome-seal {
-    padding: 3px 6px;
-    font-size: 14px;
-  }
-  #game-page.lobby .welcome .doctor-mark {
-    width: clamp(78px, 25vw, 126px);
-    margin-block: 0;
-  }
-  #game-page.lobby .doctor-mark > span {
-    right: -5px;
-    bottom: -4px;
-    padding: 2px 6px;
-    font-size: 13px;
-  }
-  .lobby .welcome-cloud {
-    right: -9px;
-    bottom: 7%;
-  }
 }
+
 .room-heading {
   display: flex;
   align-items: center;
@@ -2549,7 +2473,6 @@ select:focus-visible {
     serif;
   color: #932c25;
 }
-#game-page.game-room > .welcome,
 #game-page.game-room .left-column {
   display: none;
 }

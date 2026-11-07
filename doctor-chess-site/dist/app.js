@@ -995,6 +995,14 @@ initializeStudio();
 initializeLive();
 initializeLearning();
 initializeWatching();
+$('lobby-board').innerHTML = initial()
+  .b.map((figure, square) => {
+    const dark = (Math.floor(square / 8) + (square % 8)) % 2;
+    return (
+      '<span class="sq' + (dark ? ' dark' : '') + '">' + (figure ? piece(figure) : '') + '</span>'
+    );
+  })
+  .join('');
 restoreDesk();
 render();
 api('me')

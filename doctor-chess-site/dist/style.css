@@ -545,7 +545,7 @@ h1 i {
   font-weight: 400;
   color: #b02a25;
 }
-.play-card h2 {
+.play-card-title {
   font:
     600 25px Georgia,
     serif;
@@ -955,7 +955,7 @@ textarea {
   .play-card {
     padding: 18px 15px;
   }
-  .play-card h2 {
+  .play-card-title {
     font-size: 22px;
   }
   .board-frame {
@@ -1112,7 +1112,7 @@ textarea {
   .play-card {
     padding: 22px;
   }
-  .play-card h2 {
+  .play-card-title {
     font-size: 27px;
     margin: 17px 0;
   }
@@ -1348,7 +1348,7 @@ nav button.nav-active {
   height: 5px;
   border-radius: 0;
 }
-.play-card h2 {
+.play-card-title {
   font-weight: 500;
   font-size: 23px;
 }
@@ -2904,7 +2904,7 @@ nav button.nav-active {
 .card-label b {
   color: #d79e71;
 }
-.play-card h2 {
+.play-card-title {
   color: #5a7159;
   font-size: 24px;
   margin: 19px 0;
@@ -3477,7 +3477,7 @@ dialog {
   .play-card {
     padding: 24px;
   }
-  .play-card h2 {
+  .play-card-title {
     font-size: 27px;
   }
   .mode-tabs button {
