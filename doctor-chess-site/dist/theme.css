@@ -3051,6 +3051,56 @@ select:focus-visible {
 .trainer-layout aside {
   grid-column: 2;
 }
+#trainer-board .trainer-correct {
+  box-shadow: inset 0 0 0 3px #2f7154;
+}
+#trainer-board .trainer-wrong {
+  box-shadow: inset 0 0 0 3px #9e221d;
+}
+.trainer-verdict {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: clamp(17px, 5cqw, 29px);
+  aspect-ratio: 1;
+  transform: translate(calc(-100% - 2px), 2px);
+  border: 1px solid #fff4d4;
+  border-radius: 50%;
+  background: #2a6347;
+  color: #fffaf1;
+  font: bold clamp(12px, 3.7cqw, 20px) / 1 var(--sans);
+  pointer-events: none;
+}
+.trainer-verdict[data-tone='wrong'] {
+  background: #982520;
+}
+#trainer-review {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+#trainer-review .study-board-tools button {
+  min-width: 44px;
+}
+#trainer-line button[aria-current='step'],
+#trainer-evaluate[aria-pressed='true'] {
+  border-color: var(--red-dark);
+  background: #f5e3be;
+  color: var(--red-dark);
+}
+#trainer-position {
+  margin-block: 10px;
+  color: #654535;
+}
+#trainer-evaluate {
+  min-height: 44px;
+  margin-block: 12px;
+  padding-inline: 12px;
+}
+#trainer-evaluation {
+  margin-top: 0;
+}
 .trainer-rating,
 .profile-puzzle-rating {
   border-top: 1px solid var(--line);

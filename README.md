@@ -4,7 +4,7 @@
 
 <p align="center"><a href="https://doctor-chess.ru"><b>Играть в Doctor Chess ↗</b></a> · <a href="https://doctor-chess.ru/academy">Школа Доктора</a> · <a href="https://github.com/ubica1/doctor-chess/issues">Обратная связь</a></p>
 
-<p align="center"><a href="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml"><img src="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml/badge.svg" alt="Проверки качества"></a> <img src="https://img.shields.io/badge/release-1.8.0-B92D28?style=flat-square" alt="Doctor Chess 1.8.0"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-BD913E?style=flat-square" alt="GNU GPLv3"></a></p>
+<p align="center"><a href="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml"><img src="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml/badge.svg" alt="Проверки качества"></a> <img src="https://img.shields.io/badge/release-1.9.0-B92D28?style=flat-square" alt="Doctor Chess 1.9.0"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-BD913E?style=flat-square" alt="GNU GPLv3"></a></p>
 
 **Doctor Chess** — шахматный веб-клуб. Красно-белая доска в золотой раме, китайские орнаменты и маленький доктор в наушниках создают атмосферу, в которой хочется сыграть ещё одну партию.
 
@@ -48,6 +48,8 @@
 В [задаче дня](https://doctor-chess.ru/daily) нужно поставить мат в один или два хода. Новая позиция появляется в полночь по Москве. Самостоятельные решения идут в серию, которая хранится в браузере.
 
 Во вкладке [«Задачи»](https://doctor-chess.ru/puzzles) есть 960 позиций из открытой базы Lichess. Выберите тему и один из трёх уровней сложности. С профилем у вас есть отдельный рейтинг задач со стартом 1200. Рейтинг меняется по результату первой попытки, а незаконченная задача сохраняется. Гости решают задачи без рейтинга.
+
+Доска отмечает верные и неверные ходы. Сыгранную линию можно пересматривать по стрелкам или нажимать на ход в записи. После завершения задачи доступна оценка Stockfish для выбранной позиции.
 
 ## Партия продолжается в разборе
 
