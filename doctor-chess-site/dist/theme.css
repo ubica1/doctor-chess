@@ -2300,20 +2300,227 @@ select:focus-visible {
 #game-page.lobby .game-report {
   display: none;
 }
-#game-page.lobby .room {
-  display: block;
-  max-width: 760px;
-  margin: 0 auto;
+.welcome-seal,
+.welcome-cloud {
+  display: none;
 }
-#game-page.lobby .right-column {
-  width: 100%;
-  display: block;
-}
-#game-page.lobby .puzzle-link {
-  margin-top: 20px;
+#game-page.lobby:not([hidden]) {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: 28px;
+  max-width: 1200px;
+  padding-block-start: clamp(20px, 4vw, 48px);
 }
 #game-page.lobby .welcome {
-  padding-block: 28px;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+  overflow: hidden;
+  padding: clamp(32px, 4vw, 56px);
+  border: 1px solid #772218;
+  border-radius: 5px 5px 12px 5px;
+  background: #932d25;
+  background-image: repeating-linear-gradient(110deg, #fff2ce09 0 1px, transparent 1px 5px);
+  box-shadow:
+    0 4px 0 #62251b,
+    0 13px 22px #50231726;
+}
+#game-page.lobby .welcome::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 11px;
+  border: 4px double #d0a365;
+  border-radius: 2px 2px 8px 2px;
+}
+.lobby .welcome-seal {
+  display: inline-block;
+  padding: 5px 9px;
+  border: 1px solid #efd59d;
+  transform: rotate(-5deg);
+  color: #fff0c9;
+  font: 19px/1.25 var(--serif);
+}
+#game-page.lobby .welcome h1 {
+  margin: 17px 0 12px;
+  color: #fff5dd;
+  font: clamp(42px, 5vw, 70px) / 0.99 var(--serif);
+  letter-spacing: -0.04em;
+}
+#game-page.lobby .welcome p {
+  max-width: 26ch;
+  margin: 0;
+  color: #ffe5c5;
+  font-size: 17px;
+  line-height: 1.5;
+}
+.lobby .welcome-cloud {
+  position: absolute;
+  z-index: -1;
+  right: -28px;
+  bottom: 19%;
+  display: block;
+  width: 45%;
+  fill: none;
+  stroke: #f4d394;
+  stroke-width: 1.4;
+  opacity: 0.42;
+}
+#game-page.lobby .welcome .doctor-mark {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: clamp(150px, 19vw, 208px);
+  min-width: 0;
+  height: auto;
+  aspect-ratio: 1;
+  margin-block: 4px 16px;
+  border: 1px solid #d8ad6d;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, #381c1a 0 5px, #59342b 6px 7px, #381c1a 8px);
+  box-shadow: 0 5px 0 #671e19;
+}
+#game-page.lobby .doctor-mark svg {
+  width: 78%;
+  height: auto;
+  transform: rotate(5deg);
+}
+#game-page.lobby .doctor-mark > span {
+  bottom: 2px;
+  right: -14px;
+  padding: 4px 11px;
+  border: 1px solid #e6c488;
+  color: #662820;
+  background: #f3dcad;
+  box-shadow: 0 2px 0 #371c1a66;
+  font-size: 17px;
+}
+#game-page.lobby .room {
+  display: block;
+  min-width: 0;
+}
+#game-page.lobby .right-column {
+  display: block;
+}
+#game-page.lobby #game-settings {
+  padding: clamp(16px, 3vw, 30px);
+  background: #fffaf0;
+}
+#game-page.lobby #game-settings summary {
+  display: none;
+}
+.lobby .play-card h2 {
+  margin: 0 0 4px;
+  font-size: clamp(28px, 3vw, 40px);
+}
+.lobby .lobby-summary,
+.lobby .control-label,
+.lobby .queue-note {
+  color: #6e523c;
+}
+.lobby .mode-tabs button {
+  color: #654535;
+  font-size: 14px;
+}
+.lobby .mode-tabs button.selected {
+  color: #fff8e7;
+}
+.lobby .control-label {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: normal;
+}
+.lobby .controls small {
+  color: #6e523c;
+  font-size: 13px;
+}
+.lobby .controls .selected small {
+  color: var(--red-dark);
+}
+.lobby #new {
+  min-height: 48px;
+  font-weight: 600;
+  font-size: 16px;
+}
+.lobby .friend-game,
+.lobby .classical,
+.lobby .classical b,
+.lobby .premove-setting,
+.lobby .bot-settings label,
+.lobby .bot-settings select,
+.lobby .queue-note {
+  font-size: 14px;
+}
+.lobby .classical,
+.lobby .premove-setting small {
+  color: #6e523c;
+}
+.lobby .puzzle-link {
+  margin-top: 12px;
+  text-align: left;
+}
+.lobby .puzzle-link strong {
+  font-size: 16px;
+}
+.lobby .puzzle-link small {
+  color: #6e523c;
+  font-size: 13px;
+}
+.lobby .bottom-strip {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+@media (max-width: 760px) {
+  #game-page.lobby:not([hidden]) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  #game-page.lobby .welcome {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: clamp(24px, 5vw, 36px);
+  }
+  #game-page.lobby .welcome::before {
+    inset: 7px;
+    border-width: 3px;
+  }
+  #game-page.lobby .welcome h1 {
+    margin-block: 10px;
+    font-size: clamp(30px, 7vw, 48px);
+  }
+  #game-page.lobby .welcome p {
+    font-size: 14px;
+  }
+  .lobby .lobby-summary {
+    margin-bottom: 12px;
+  }
+  .lobby .bot-settings label {
+    margin-top: 10px;
+  }
+  .lobby .welcome-seal {
+    padding: 3px 6px;
+    font-size: 14px;
+  }
+  #game-page.lobby .welcome .doctor-mark {
+    width: clamp(78px, 25vw, 126px);
+    margin-block: 0;
+  }
+  #game-page.lobby .doctor-mark > span {
+    right: -5px;
+    bottom: -4px;
+    padding: 2px 6px;
+    font-size: 13px;
+  }
+  .lobby .welcome-cloud {
+    right: -9px;
+    bottom: 7%;
+  }
 }
 .room-heading {
   display: flex;
