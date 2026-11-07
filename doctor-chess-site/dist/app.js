@@ -38,7 +38,11 @@ function unlockMoveAudio() {
   const Audio = window.AudioContext || window.webkitAudioContext;
   if (!Audio) return;
   try {
-    audioContext ||= new Audio();
+    if (!audioContext) {
+      audioContext = new Audio();
+      loadMoveSound(false);
+      loadMoveSound(true);
+    }
     if (audioContext.state === 'running' || audioResume) return;
     audioResume = audioContext
       .resume()
@@ -49,47 +53,37 @@ function unlockMoveAudio() {
   } catch {}
 }
 
-function oakSound(context, capture) {
-  const rate = context.sampleRate;
-  const buffer = context.createBuffer(1, Math.ceil(rate * (capture ? 0.14 : 0.1)), rate);
-  const samples = buffer.getChannelData(0);
-  const damping = 1 - Math.exp((-2 * Math.PI * 1350) / rate);
-  // Keep the contact muted and let the lower resonances carry the strike.
-  const strike = (offset, pitch, gain) => {
-    const start = Math.round(offset * rate);
-    let noise = 0;
-    for (let i = start; i < samples.length; i++) {
-      const time = (i - start) / rate;
-      const phase = 2 * Math.PI * time * pitch;
-      noise += (Math.random() * 2 - 1 - noise) * damping;
-      const contact = noise * 0.18 * Math.exp(-time / 0.0038);
-      const body =
-        0.22 * Math.sin(phase * 242) * Math.exp(-time / 0.016) +
-        0.095 * Math.sin(phase * 565) * Math.exp(-time / 0.009) +
-        0.04 * Math.sin(phase * 870) * Math.exp(-time / 0.005);
-      samples[i] += (contact + body) * gain * Math.min(1, time / 0.0011);
-    }
-  };
-  if (capture) strike(0, 1.08, 0.4);
-  strike(capture ? 0.026 : 0, capture ? 0.88 : 1, capture ? 0.9 : 0.78);
-  return buffer;
+function loadMoveSound(capture) {
+  if (!moveSounds.has(capture)) {
+    const path = capture ? '/sounds/oak-capture.wav' : '/sounds/oak-move.wav';
+    const buffer = fetch(path)
+      .then((response) => {
+        if (!response.ok) throw new Error('Move audio unavailable');
+        return response.arrayBuffer();
+      })
+      .then((bytes) => audioContext.decodeAudioData(bytes))
+      .catch(() => {
+        moveSounds.delete(capture);
+        return null;
+      });
+    moveSounds.set(capture, buffer);
+  }
+  return moveSounds.get(capture);
 }
 
-function moveSound(capture = false) {
+async function moveSound(capture = false) {
   if (!soundsEnabled || !audioContext) return;
   const started = Date.now();
-  const play = () => {
-    if (!soundsEnabled || audioContext.state !== 'running' || Date.now() - started > 220) return;
-    try {
-      if (!moveSounds.has(capture)) moveSounds.set(capture, oakSound(audioContext, capture));
-      const source = audioContext.createBufferSource();
-      source.buffer = moveSounds.get(capture);
-      source.connect(audioContext.destination);
-      source.start();
-    } catch {}
-  };
-  if (audioContext.state === 'running') play();
-  else audioResume?.then(play);
+  const [buffer] = await Promise.all([loadMoveSound(capture), audioResume]);
+  if (!buffer || !soundsEnabled || audioContext.state !== 'running' || Date.now() - started > 350) {
+    return;
+  }
+  try {
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+    source.start();
+  } catch {}
 }
 
 function isMoveCapture(state, from, to) {
