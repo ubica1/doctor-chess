@@ -49,29 +49,29 @@ function unlockMoveAudio() {
   } catch {}
 }
 
-function stoneSound(context, capture) {
+function oakSound(context, capture) {
   const rate = context.sampleRate;
   const buffer = context.createBuffer(1, Math.ceil(rate * (capture ? 0.14 : 0.1)), rate);
   const samples = buffer.getChannelData(0);
-  // A short contact transient and damped resonances of a hard piece on the board.
+  const damping = 1 - Math.exp((-2 * Math.PI * 1350) / rate);
+  // Keep the contact muted and let the lower resonances carry the strike.
   const strike = (offset, pitch, gain) => {
     const start = Math.round(offset * rate);
-    let previousNoise = 0;
+    let noise = 0;
     for (let i = start; i < samples.length; i++) {
       const time = (i - start) / rate;
       const phase = 2 * Math.PI * time * pitch;
-      const noise = Math.random() * 2 - 1;
-      const click = (noise - previousNoise) * 0.105 * Math.exp(-time / 0.0025);
+      noise += (Math.random() * 2 - 1 - noise) * damping;
+      const contact = noise * 0.18 * Math.exp(-time / 0.0038);
       const body =
-        0.22 * Math.sin(phase * 390) * Math.exp(-time / 0.011) +
-        0.12 * Math.sin(phase * 1120) * Math.exp(-time / 0.007) +
-        0.07 * Math.sin(phase * 2180) * Math.exp(-time / 0.0045);
-      samples[i] += (click + body) * gain * Math.min(1, time / 0.0008);
-      previousNoise = noise;
+        0.22 * Math.sin(phase * 242) * Math.exp(-time / 0.016) +
+        0.095 * Math.sin(phase * 565) * Math.exp(-time / 0.009) +
+        0.04 * Math.sin(phase * 870) * Math.exp(-time / 0.005);
+      samples[i] += (contact + body) * gain * Math.min(1, time / 0.0011);
     }
   };
-  if (capture) strike(0, 1.1, 0.48);
-  strike(capture ? 0.022 : 0, capture ? 0.84 : 1, capture ? 0.94 : 0.76);
+  if (capture) strike(0, 1.08, 0.4);
+  strike(capture ? 0.026 : 0, capture ? 0.88 : 1, capture ? 0.9 : 0.78);
   return buffer;
 }
 
@@ -81,7 +81,7 @@ function moveSound(capture = false) {
   const play = () => {
     if (!soundsEnabled || audioContext.state !== 'running' || Date.now() - started > 220) return;
     try {
-      if (!moveSounds.has(capture)) moveSounds.set(capture, stoneSound(audioContext, capture));
+      if (!moveSounds.has(capture)) moveSounds.set(capture, oakSound(audioContext, capture));
       const source = audioContext.createBufferSource();
       source.buffer = moveSounds.get(capture);
       source.connect(audioContext.destination);

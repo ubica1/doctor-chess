@@ -1,14 +1,15 @@
 /* Canonical club theme. Functional layout lives in style.css; all visual tokens and readable type live here. */
 :root {
-  --red: #b92d28;
-  --red-dark: #85231f;
-  --gold: #bd913e;
-  --gold-light: #edd59a;
-  --cream: #fffdf8;
-  --paper: #f7f1e5;
-  --ink: #443831;
-  --muted: #7b7063;
-  --line: #decdb0;
+  --red: #a53b32;
+  --red-dark: #792d25;
+  --gold: #ab8146;
+  --gold-light: #e6c88e;
+  --cream: #fffbf3;
+  --paper: #f6efe4;
+  --ink: #44362f;
+  --muted: #75665a;
+  --line: #dfceb5;
+  --ui-motion: 150ms ease-out;
   --serif: Georgia, 'Times New Roman', serif;
   --sans: Arial, Helvetica, sans-serif;
 }
@@ -53,7 +54,7 @@ header {
   gap: 20px;
 }
 header:after {
-  background: #d2af672b;
+  background: #b4894820;
 }
 .brand {
   font: 27px var(--serif);
@@ -238,11 +239,62 @@ nav button.nav-active {
 }
 .clock.ticking {
   background: #fffaf0;
-  border-color: var(--gold);
-  box-shadow: 0 2px #c3a768;
+  border-color: #bf9c61;
+  box-shadow: 0 2px #a882492b;
 }
 .clock.low {
   color: var(--red);
+}
+header button,
+#game-page .mode-tabs button,
+#game-page .controls button,
+#game-page .friend-game,
+#game-page .board-toolbar button,
+#game-page .review-strip button,
+#game-page .clock,
+.primary {
+  transition:
+    background-color var(--ui-motion),
+    border-color var(--ui-motion),
+    color var(--ui-motion),
+    box-shadow var(--ui-motion);
+}
+.board-frame {
+  background: linear-gradient(145deg, #e6c989, #c4a064 44%, #e4c78b 74%, #b28a50);
+  border-color: #d9b77b;
+  box-shadow:
+    inset 0 0 0 2px #f2ddae,
+    inset 0 0 0 5px #ba9259,
+    inset 0 0 0 7px #ddbd83,
+    0 4px 0 #a27a46,
+    0 7px 0 #89653b,
+    0 13px 24px #57412c23;
+}
+.board-rim {
+  background: #c5a16a;
+  border-color: #8f693f;
+  box-shadow:
+    0 0 0 1px #e9ce97,
+    inset 0 1px 4px #704b2c70;
+}
+.sq {
+  background: linear-gradient(145deg, #fbf1df, #f0e2c9);
+  box-shadow: inset 0 1px #fffaf354;
+  transition: box-shadow 120ms ease-out;
+}
+.sq.dark {
+  background: linear-gradient(145deg, #ba6253, #ab4e42);
+  box-shadow: inset 0 1px #e3a89542;
+}
+.sq.last {
+  box-shadow: inset 0 0 0 3px #d3a65eb8;
+}
+.sq.selected {
+  box-shadow: inset 0 0 0 3px #ab7c39;
+}
+.sq.in-check {
+  background-image: radial-gradient(ellipse at center, #d68569, #b3564660 56%, transparent 78%);
+  box-shadow: inset 0 0 0 2px #ead19e;
 }
 .board-toolbar {
   font-size: 12px;
@@ -362,13 +414,13 @@ nav button.nav-active {
   color: #9a825e;
 }
 .controls .selected {
-  background: #fff0e8;
-  border: 1px solid var(--red);
-  box-shadow: inset 0 0 0 1px var(--red);
+  background: #f5e6d8;
+  border: 1px solid #b5856c;
+  box-shadow: inset 0 0 0 1px #b5856c4d;
 }
 .controls .selected b,
 .controls .selected small {
-  color: var(--red);
+  color: var(--red-dark);
 }
 .classical {
   font-size: 12px;
@@ -381,17 +433,17 @@ nav button.nav-active {
 .primary {
   font-size: 15px;
   line-height: 1.5;
-  background: linear-gradient(#ce4939, #b62b25);
-  border-color: #9a2921;
+  background: #a34438;
+  border-color: #914030;
   color: #fff5dc;
   box-shadow:
-    inset 0 1px #e67d58,
-    0 3px #8d381b35;
+    inset 0 1px #cf8875,
+    0 2px #8d381b29;
   border-radius: 4px 6px 3px 5px;
   padding: 15px;
 }
 .primary:hover {
-  background: var(--red);
+  background: #ad4a3e;
 }
 .queue-note {
   font-size: 12px;
@@ -1519,8 +1571,27 @@ textarea {
   color: #4d3028;
 }
 .finish-dialog::backdrop {
-  background: #271b17b8;
-  backdrop-filter: blur(3px);
+  background: #37231c99;
+  backdrop-filter: blur(2px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  dialog[open] {
+    animation: dc-surface-in 175ms ease-out both;
+  }
+  #game-settings .bot-settings:not([hidden]),
+  #game-settings .controls:not([hidden]) {
+    animation: dc-surface-in 145ms ease-out both;
+  }
+}
+@keyframes dc-surface-in {
+  from {
+    opacity: 0.65;
+    translate: 0 4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 .finish-close {
   position: absolute;
@@ -2389,9 +2460,17 @@ select:focus-visible {
   font-size: 14px;
 }
 .lobby .mode-tabs button.selected {
-  background: #f8e6d8;
-  border-color: var(--red);
+  background: #f3e3d7;
+  border-color: #b9846d;
   color: var(--red-dark);
+}
+.lobby .friend-game {
+  background: #fbf4e9;
+  border: 1px solid #d5bb97;
+  color: var(--red-dark);
+}
+.lobby .friend-game:hover {
+  background: #f1e6d4;
 }
 .lobby .control-label {
   font-size: 14px;
@@ -2420,9 +2499,12 @@ select:focus-visible {
 .lobby .queue-note {
   font-size: 14px;
 }
-.lobby .classical,
+.lobby .classical {
+  color: #6e523c;
+}
 .lobby .premove-setting small {
   color: #6e523c;
+  font-size: 13px;
 }
 .lobby .puzzle-link {
   margin-top: 12px;
