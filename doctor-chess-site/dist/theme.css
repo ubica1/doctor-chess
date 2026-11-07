@@ -3101,6 +3101,14 @@ select:focus-visible {
 #trainer-evaluation {
   margin-top: 0;
 }
+.study-board-tools [data-move-sound] {
+  min-width: 44px;
+  font-size: 18px;
+}
+.study-board-tools [data-move-sound].sound-on {
+  border-color: #437057;
+  color: #2e5b43;
+}
 .trainer-rating,
 .profile-puzzle-rating {
   border-top: 1px solid var(--line);

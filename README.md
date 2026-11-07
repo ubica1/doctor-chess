@@ -4,7 +4,7 @@
 
 <p align="center"><a href="https://doctor-chess.ru"><b>Играть в Doctor Chess ↗</b></a> · <a href="https://doctor-chess.ru/academy">Школа Доктора</a> · <a href="https://github.com/ubica1/doctor-chess/issues">Обратная связь</a></p>
 
-<p align="center"><a href="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml"><img src="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml/badge.svg" alt="Проверки качества"></a> <img src="https://img.shields.io/badge/release-1.9.0-B92D28?style=flat-square" alt="Doctor Chess 1.9.0"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-BD913E?style=flat-square" alt="GNU GPLv3"></a></p>
+<p align="center"><a href="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml"><img src="https://github.com/ubica1/doctor-chess/actions/workflows/ci.yml/badge.svg" alt="Проверки качества"></a> <img src="https://img.shields.io/badge/release-1.10.0-B92D28?style=flat-square" alt="Doctor Chess 1.10.0"> <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-BD913E?style=flat-square" alt="GNU GPLv3"></a></p>
 
 **Doctor Chess** — шахматный веб-клуб. Красно-белая доска в золотой раме, китайские орнаменты и маленький доктор в наушниках создают атмосферу, в которой хочется сыграть ещё одну партию.
 
@@ -17,6 +17,8 @@
 **Партия с другом.** Создайте приглашение, выберите цвет и контроль, отправьте ссылку. Друг входит в свой профиль и присоединяется к вам. Приглашение действует 30 минут. Из профиля можно вызвать конкретного игрока — принять такой вызов сможет только он. Дружеская встреча не меняет рейтинг; после окончания можно предложить реванш со сменой цветов. Пока соперник ещё не ответил, можно попросить вернуть свой последний ход. Возврат требует его согласия, а потраченное время не возвращается. Кнопка «+15 сек сопернику» позволяет подарить время — до пяти минут за партию.
 
 **Домашняя партия.** Играйте вдвоём на одном устройстве без часов и рейтинга. Фигуры можно перемещать касанием, кликами или перетаскиванием.
+
+Каменные звуки ходов и взятий включены по умолчанию. Кнопка с нотой запоминает ваш выбор в браузере.
 
 Полоса связи показывает ваше подключение и присутствие соперника. При возврате во вкладку приложение запрашивает актуальную позицию, а после сбоя восстанавливает соединение. Часы партии продолжают идти; потеря связи сама по себе не объявляет поражение.
 

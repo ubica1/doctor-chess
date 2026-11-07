@@ -226,21 +226,30 @@ function showPuzzleTask(session, task, attemptedMove) {
         : task.feedback === 'wrong'
           ? 'Есть более сильный ход. Попробуйте ещё раз.'
           : 'Найдите лучший ход.';
-  if (attemptedMove && !finished && task.step === oldStep + 2) {
+  const acceptedMove =
+    attemptedMove && task.step > oldStep && task.moves[oldStep] === attemptedMove;
+  const playMove = (index) => {
+    const { from, to } = replay.records[index];
+    moveSound(isMoveCapture(replay.positions[index], from, to));
+  };
+  if (acceptedMove && !finished && task.step === oldStep + 2) {
     session.shown = oldStep + 1;
     $('trainer-feedback').textContent = 'Соперник отвечает…';
     renderPuzzleTrainingBoard();
+    playMove(oldStep);
     session.replyTimer = setTimeout(() => {
       if (puzzleTraining !== session) return;
       session.shown = task.step;
       session.busy = false;
       $('trainer-feedback').textContent = 'Найдите продолжение.';
       renderPuzzleTrainingBoard();
+      playMove(oldStep + 1);
     }, 570);
     return true;
   }
   $('trainer-feedback').textContent = feedback();
   renderPuzzleTrainingBoard();
+  if (acceptedMove && task.step === oldStep + 1) playMove(oldStep);
   return false;
 }
 
@@ -376,6 +385,7 @@ async function loadPuzzleTraining() {
           <p id="trainer-score"></p>
           <div class="study-board-tools">
             <button id="trainer-reveal" hidden>Показать решение</button><button id="trainer-next">Следующая задача →</button>
+            <button id="trainer-sound" data-move-sound>♪</button>
           </div>
           <div id="trainer-review" hidden>
             <div class="study-board-tools">
@@ -435,6 +445,7 @@ async function loadPuzzleTraining() {
     $('trainer-board').append(session.badge);
     $('trainer-next').onclick = startPuzzleTrainingTask;
     $('trainer-reveal').onclick = () => submitPuzzleTrainingMove({ reveal: true });
+    bindMoveSoundButton($('trainer-sound'));
     $('trainer-first').onclick = () => selectPuzzlePly(0);
     $('trainer-back').onclick = () => selectPuzzlePly(session.shown - 1);
     $('trainer-forward').onclick = () => selectPuzzlePly(session.shown + 1);

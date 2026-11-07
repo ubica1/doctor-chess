@@ -19,8 +19,10 @@ let remoteGame = null,
   networkEpoch = 0,
   positionFinished = false,
   boardView = null;
-let soundsEnabled = localStorage.getItem('dc-sounds') === 'on',
-  audioContext = null;
+let soundsEnabled = localStorage.getItem('dc-sounds') !== 'off',
+  audioContext = null,
+  audioResume = null;
+const moveSounds = new Map();
 control = ['1+0', '3+0', '3+2', '5+0', '10+0', '15+10', '30+0'].includes(
   localStorage.getItem('dc-control')
 )
@@ -31,24 +33,90 @@ mode = ['online', 'local', 'puzzle', 'computer', 'analysis'].includes(
 )
   ? localStorage.getItem('dc-mode')
   : 'computer';
-function moveSound(capture = false) {
+function unlockMoveAudio() {
   if (!soundsEnabled) return;
+  const Audio = window.AudioContext || window.webkitAudioContext;
+  if (!Audio) return;
   try {
-    audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
-    audioContext.resume();
-    const now = audioContext.currentTime;
-    const oscillator = audioContext.createOscillator(),
-      gain = audioContext.createGain();
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(capture ? 230 : 390, now);
-    oscillator.frequency.exponentialRampToValueAtTime(100, now + 0.065);
-    gain.gain.setValueAtTime(0.07, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.1);
+    audioContext ||= new Audio();
+    if (audioContext.state === 'running' || audioResume) return;
+    audioResume = audioContext
+      .resume()
+      .catch(() => {})
+      .finally(() => {
+        audioResume = null;
+      });
   } catch {}
+}
+
+function stoneSound(context, capture) {
+  const rate = context.sampleRate;
+  const buffer = context.createBuffer(1, Math.ceil(rate * (capture ? 0.14 : 0.1)), rate);
+  const samples = buffer.getChannelData(0);
+  // A short contact transient and damped resonances of a hard piece on the board.
+  const strike = (offset, pitch, gain) => {
+    const start = Math.round(offset * rate);
+    let previousNoise = 0;
+    for (let i = start; i < samples.length; i++) {
+      const time = (i - start) / rate;
+      const phase = 2 * Math.PI * time * pitch;
+      const noise = Math.random() * 2 - 1;
+      const click = (noise - previousNoise) * 0.105 * Math.exp(-time / 0.0025);
+      const body =
+        0.22 * Math.sin(phase * 390) * Math.exp(-time / 0.011) +
+        0.12 * Math.sin(phase * 1120) * Math.exp(-time / 0.007) +
+        0.07 * Math.sin(phase * 2180) * Math.exp(-time / 0.0045);
+      samples[i] += (click + body) * gain * Math.min(1, time / 0.0008);
+      previousNoise = noise;
+    }
+  };
+  if (capture) strike(0, 1.1, 0.48);
+  strike(capture ? 0.022 : 0, capture ? 0.84 : 1, capture ? 0.94 : 0.76);
+  return buffer;
+}
+
+function moveSound(capture = false) {
+  if (!soundsEnabled || !audioContext) return;
+  const started = Date.now();
+  const play = () => {
+    if (!soundsEnabled || audioContext.state !== 'running' || Date.now() - started > 220) return;
+    try {
+      if (!moveSounds.has(capture)) moveSounds.set(capture, stoneSound(audioContext, capture));
+      const source = audioContext.createBufferSource();
+      source.buffer = moveSounds.get(capture);
+      source.connect(audioContext.destination);
+      source.start();
+    } catch {}
+  };
+  if (audioContext.state === 'running') play();
+  else audioResume?.then(play);
+}
+
+function isMoveCapture(state, from, to) {
+  return !!state.b[to] || (state.b[from]?.toLowerCase() === 'p' && to === state.ep);
+}
+
+function updateMoveSoundButton(button) {
+  const label = soundsEnabled ? 'Выключить звук ходов' : 'Включить звук ходов';
+  button.classList.toggle('sound-on', soundsEnabled);
+  button.setAttribute('aria-pressed', String(soundsEnabled));
+  button.setAttribute('aria-label', label);
+  button.title = label;
+}
+
+function bindMoveSoundButton(button) {
+  updateMoveSoundButton(button);
+  button.onclick = () => {
+    soundsEnabled = !soundsEnabled;
+    try {
+      localStorage.setItem('dc-sounds', soundsEnabled ? 'on' : 'off');
+    } catch {}
+    document.querySelectorAll('[data-move-sound]').forEach(updateMoveSoundButton);
+    if (soundsEnabled) {
+      unlockMoveAudio();
+      moveSound();
+    }
+  };
 }
 function updateResume() {
   const practice = $('resume-practice');
@@ -381,12 +449,6 @@ function render() {
 }
 function updatePanelBase() {
   updateResume();
-  $('sound').classList.toggle('sound-on', soundsEnabled);
-  $('sound').setAttribute('aria-pressed', String(soundsEnabled));
-  $('sound').setAttribute(
-    'aria-label',
-    soundsEnabled ? 'Выключить звук ходов' : 'Включить звук ходов'
-  );
   const online = mode === 'online';
   $('online').classList.toggle('selected', online);
   $('local').classList.toggle('selected', mode === 'local');
@@ -559,7 +621,7 @@ async function makeMove(i, j, p) {
     previousLast = [...last],
     currentGame = game;
   const next = apply(s, i, j, p),
-    capture = !!s.b[j] || (s.b[i].toLowerCase() === 'p' && j === s.ep);
+    capture = isMoveCapture(s, i, j);
   if (mode === 'puzzle' && !(check(next, next.turn) && !allMoves(next))) {
     busy = false;
     selected = -1;
@@ -645,7 +707,10 @@ function acceptGame(g) {
     selected = -1;
     if (!previous || previous.id !== g.id) flipped = g.you === 'b';
     render();
-    if (opponentMove) moveSound();
+    if (opponentMove) {
+      const { from, to } = g.moves.at(-1);
+      moveSound(isMoveCapture(history.at(-1), from, to));
+    }
   } else {
     updatePanel();
     updatePlayers();
@@ -816,12 +881,35 @@ $('resume-practice').onclick = () => navigate('/play/' + mode);
 $('resume-game').onclick = () => {
   if (remoteGame) navigate('/game/' + remoteGame.id);
 };
-$('sound').onclick = () => {
-  soundsEnabled = !soundsEnabled;
-  localStorage.setItem('dc-sounds', soundsEnabled ? 'on' : 'off');
-  updatePanel();
-  if (soundsEnabled) moveSound();
-};
+bindMoveSoundButton($('sound'));
+document.addEventListener(
+  'pointerdown',
+  (event) => {
+    if (event.isTrusted && event.pointerType === 'mouse' && event.button === 0) unlockMoveAudio();
+  },
+  true
+);
+document.addEventListener(
+  'pointerup',
+  (event) => {
+    if (event.isTrusted && event.pointerType !== 'mouse') unlockMoveAudio();
+  },
+  true
+);
+document.addEventListener(
+  'click',
+  (event) => {
+    if (event.isTrusted) unlockMoveAudio();
+  },
+  true
+);
+document.addEventListener(
+  'keydown',
+  (event) => {
+    if (event.isTrusted && (event.key === 'Enter' || event.key === ' ')) unlockMoveAudio();
+  },
+  true
+);
 $('new').onclick = start;
 $('online').onclick = () => changeMode('online').catch((e) => toast(e.message));
 $('local').onclick = () => changeMode('local').catch((e) => toast(e.message));

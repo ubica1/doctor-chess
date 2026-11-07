@@ -195,6 +195,7 @@ function dailySquare(to) {
     if (line.length === 1) {
       const progress = saveDailyProgress(session, session.hinted ? 'assisted' : 'solved');
       finishDailyPuzzle(session, progress, [...session.played, line[0]]);
+      moveSound(isMoveCapture(state, from, to));
       return;
     }
     const [first, reply] = line;
@@ -204,14 +205,17 @@ function dailySquare(to) {
     session.waiting = true;
     $('daily-feedback').textContent = 'Соперник отвечает…';
     renderDailyPuzzle();
+    moveSound(isMoveCapture(state, from, to));
     session.replyTimer = setTimeout(() => {
       if (dailyPuzzle !== session) return;
+      const capture = isMoveCapture(session.state, reply.from, reply.to);
       session.state = ChessDaily.after(session.state, reply);
       session.last = [reply.from, reply.to];
       session.lines = ChessDaily.solutions(session.state, 1);
       session.waiting = false;
       $('daily-feedback').textContent = 'Теперь поставьте мат.';
       renderDailyPuzzle();
+      moveSound(capture);
     }, 380);
   };
   if (ChessDaily.promotion(state, from, to)) chooseLearningPromotion(play);
@@ -247,6 +251,7 @@ function loadDailyPuzzle() {
         <p id="daily-blocked" role="status" hidden>Решение доступно после завершения сетевой партии.</p>
         <div class="study-board-tools" id="daily-actions">
           <button id="daily-hint">Подсказка</button><button id="daily-answer">Показать решение</button>
+          <button id="daily-sound" data-move-sound>♪</button>
         </div>
         <p class="daily-streak" id="daily-streak"></p>
         <p class="muted">Прогресс хранится в браузере. Новая позиция появляется в полночь по Москве.</p>
@@ -293,6 +298,7 @@ function loadDailyPuzzle() {
     finishDailyPuzzle(session, saveDailyProgress(session, 'revealed'), session.example, true);
   };
   $('daily-today').onclick = () => navigate('/daily');
+  bindMoveSoundButton($('daily-sound'));
   if (dailyFinished(progress)) finishDailyPuzzle(session, progress, session.example, true);
   else {
     refreshDailyStreak();
