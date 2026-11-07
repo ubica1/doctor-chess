@@ -340,6 +340,7 @@ class Handler(SimpleHTTPRequestHandler):
             or self.path.startswith("/play/")
             or self.path.startswith("/study/")
             or self.path.startswith("/watch/")
+            or self.path.startswith("/puzzles/progress/")
             or urlparse(self.path).path
             in (
                 "/players",
@@ -350,6 +351,7 @@ class Handler(SimpleHTTPRequestHandler):
                 "/watch",
                 "/daily",
                 "/puzzles",
+                "/puzzles/progress",
             )
         ):
             self.path = "/index.html"
@@ -364,6 +366,24 @@ class Handler(SimpleHTTPRequestHandler):
                 query = parse_qs(parsed.query)
                 if parsed.path == "/api/puzzles":
                     return self.reply(puzzles.overview(uid))
+                if parsed.path == "/api/puzzles/progress":
+                    try:
+                        page = int(query.get("page", ["1"])[0])
+                    except ValueError:
+                        raise ClubError("Некорректная страница.")
+                    return self.reply(
+                        puzzles.dashboard(
+                            uid,
+                            query.get("theme", ["mix"])[0],
+                            query.get("result", ["all"])[0],
+                            page,
+                        )
+                    )
+                saved_puzzle = re.fullmatch(
+                    r"/api/puzzles/history/([A-Za-z0-9]{5})", parsed.path
+                )
+                if saved_puzzle:
+                    return self.reply(puzzles.saved(uid, saved_puzzle[1]))
                 if parsed.path == "/api/studies":
                     try:
                         page = max(1, min(10000, int(query.get("page", ["1"])[0])))

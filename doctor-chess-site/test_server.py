@@ -1,4 +1,5 @@
 import os, tempfile, threading, json, urllib.request, http.cookiejar, unittest, time, importlib.util
+import sqlite3
 from pathlib import Path
 
 TEMP = tempfile.TemporaryDirectory()
@@ -1354,6 +1355,36 @@ class StudiesIntegration(unittest.TestCase):
 
 
 class PuzzleIntegration(unittest.TestCase):
+    def test_progress_migrates_existing_attempts_without_inventing_dates(self):
+        with sqlite3.connect(":memory:") as db:
+            db.row_factory = sqlite3.Row
+            db.executescript("""
+                CREATE TABLE ratings (
+                    user_id TEXT, category TEXT, rating INTEGER, played INTEGER,
+                    wins INTEGER, PRIMARY KEY (user_id, category)
+                );
+                INSERT INTO ratings VALUES ('legacy', 'puzzles', 1212, 1, 1);
+                CREATE TABLE puzzle_attempts (
+                    user_id TEXT, puzzle_id TEXT, step INTEGER NOT NULL DEFAULT 0,
+                    state TEXT NOT NULL DEFAULT 'active', delta INTEGER, win INTEGER,
+                    final_move TEXT, PRIMARY KEY (user_id, puzzle_id)
+                );
+                """)
+            puzzle = next(iter(server.puzzles.catalog.values()))
+            db.execute(
+                "INSERT INTO puzzle_attempts VALUES (?,?,?,?,?,?,?)",
+                ("legacy", puzzle["id"], len(puzzle["line"]), "solved", 12, 1, None),
+            )
+            service = server.Puzzles(db, server.BASE / "puzzle-catalog.jsonl")
+            data = service.dashboard("legacy", "mix", "all", 1)
+            self.assertEqual(data["progress"]["rating"], 1212)
+            self.assertEqual(data["trend"], [])
+            self.assertEqual(data["history"][0]["result"], "win")
+            self.assertIsNone(data["history"][0]["updatedAt"])
+            self.assertEqual(
+                service.saved("legacy", puzzle["id"])["moves"], puzzle["line"]
+            )
+
     def test_guest_catalog_and_signed_attempt(self):
         guest = client()
         with guest.open(BASE + "/puzzles") as response:
@@ -1401,6 +1432,9 @@ class PuzzleIntegration(unittest.TestCase):
         _, task = call(a, "puzzles/start", settings)
         self.assertTrue(1400 <= task["rating"] < 1800)
         self.assertEqual(task["progress"], {"rating": 1200, "played": 0, "wins": 0})
+        history = "puzzles/history/" + task["id"]
+        self.assertEqual(call(a, history)[0], 404)
+        self.assertEqual(call(client(), "puzzles/progress")[0], 401)
         bad = {"id": task["id"], "step": 0, "move": "a1a1"}
         self.assertEqual(call(stranger, "puzzles/play", bad)[0], 404)
         wrong = call(a, "puzzles/play", bad)[1]
@@ -1408,6 +1442,11 @@ class PuzzleIntegration(unittest.TestCase):
         self.assertEqual(wrong["progress"]["played"], 1)
         self.assertLess(wrong["score"]["delta"], 0)
         self.assertEqual(call(a, "puzzles/play", bad)[1], wrong)
+        self.assertEqual(call(stranger, history)[0], 404)
+        self.assertEqual(call(client(), history)[0], 401)
+        self.assertEqual(call(a, history)[1]["moves"], [])
+        active = call(a, "puzzles/progress?theme=fork&result=active")[1]
+        self.assertEqual([r["id"] for r in active["history"]], [task["id"]])
         line = server.puzzles.catalog[task["id"]]["line"]
         for step in range(0, len(line), 2):
             resumed = call(a, "puzzles/start", settings)[1]
@@ -1437,6 +1476,24 @@ class PuzzleIntegration(unittest.TestCase):
         self.assertEqual(answer["state"], "revealed")
         self.assertEqual(answer["progress"]["played"], 3)
         self.assertEqual(call(a, "puzzles/play", reveal)[1], answer)
+        dashboard = call(a, "puzzles/progress")[1]
+        self.assertEqual(dashboard["total"], 3)
+        self.assertEqual(
+            [row["result"] for row in dashboard["history"]],
+            ["revealed", "win", "retry"],
+        )
+        self.assertTrue(all(row["updatedAt"] for row in dashboard["history"]))
+        self.assertEqual(len(dashboard["trend"]), 4)
+        self.assertEqual(dashboard["trend"][0], 1200)
+        self.assertEqual(dashboard["trend"][-1], answer["progress"]["rating"])
+        fork = next(theme for theme in dashboard["themes"] if theme["id"] == "fork")
+        self.assertEqual((fork["played"], fork["wins"]), (3, 1))
+        filtered = call(a, "puzzles/progress?theme=fork&result=win&page=99")[1]
+        self.assertEqual(filtered["page"], 1)
+        self.assertEqual([row["id"] for row in filtered["history"]], [next_task["id"]])
+        self.assertEqual(call(a, "puzzles/progress?theme=unknown")[0], 400)
+        self.assertEqual(call(a, history)[1]["moves"], line)
+        self.assertEqual(call(a, "puzzles/progress")[1], dashboard)
         profile = call(client(), "players/PuzzleRated")[1]["player"]
         self.assertEqual(
             profile["ratings"]["puzzles"]["rating"], answer["progress"]["rating"]

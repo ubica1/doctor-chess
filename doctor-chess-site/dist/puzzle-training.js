@@ -20,8 +20,10 @@ function updatePuzzleTrainingSafety() {
   $('trainer-reveal').hidden = !active;
   $('trainer-reveal').disabled = blocked || session.busy || session.shown !== session.task?.step;
   $('trainer-review').hidden = !session.task;
-  $('trainer-theme').disabled = session.busy;
-  $('trainer-level').disabled = session.busy;
+  if (!session.savedId) {
+    $('trainer-theme').disabled = session.busy;
+    $('trainer-level').disabled = session.busy;
+  }
   $('trainer-first').disabled = $('trainer-back').disabled = session.busy || session.shown === 0;
   $('trainer-last').disabled = $('trainer-forward').disabled =
     session.busy || session.shown === session.task?.step;
@@ -202,7 +204,7 @@ function showPuzzleTask(session, task, attemptedMove) {
     lead: DoctorEngine.move(task.lead),
     selected: -1,
     shown: task.step,
-    accepted: task.state === 'revealed' ? (oldStep ?? 0) : task.step,
+    accepted: task.accepted ?? (task.state === 'revealed' ? (oldStep ?? 0) : task.step),
     wrongMove: task.feedback === 'wrong' ? DoctorEngine.move(attemptedMove) : null,
   });
   const finished = task.state !== 'active';
@@ -354,25 +356,37 @@ function puzzleTrainingSquare(to) {
   else submitPuzzleTrainingMove({ move: uci });
 }
 
-async function loadPuzzleTraining() {
+async function loadPuzzleTraining(savedId = null) {
   communityShell();
   communityNav('nav-puzzles');
-  document.title = 'Задачи · Doctor Chess';
-  const session = (puzzleTraining = { shown: 0, selected: -1, evaluations: new Map() });
+  document.title = (savedId ? 'Задача из истории' : 'Задачи') + ' · Doctor Chess';
+  if (savedId && !user) {
+    showPuzzleProgressLogin('Войдите, чтобы открыть задачу из своей истории.');
+    return;
+  }
+  const session = (puzzleTraining = { savedId, shown: 0, selected: -1, evaluations: new Map() });
   try {
-    const overview = await api('puzzles');
+    const [overview, saved] = await Promise.all([
+      api('puzzles'),
+      savedId ? api('puzzles/history/' + savedId) : null,
+    ]);
     if (puzzleTraining !== session) return;
     session.overview = overview;
     $('community-page').innerHTML = `
       <section class="workspace-heading">
         <span class="workspace-seal" aria-hidden="true">练</span>
-        <div><p>ТАКТИЧЕСКАЯ ТРЕНИРОВКА</p><h1>Задачи</h1><p>Выберите тему или сыграйте подборку вперемешку.</p></div>
+        <div><p>ТАКТИЧЕСКАЯ ТРЕНИРОВКА</p><h1>${savedId ? 'Задача из истории' : 'Задачи'}</h1><p>${savedId ? 'Вернитесь к позиции и пересмотрите ходы.' : 'Выберите тему или сыграйте подборку вперемешку.'}</p></div>
       </section>
       <section class="trainer-filters" aria-label="Подбор задач">
-        <label>Тема<select id="trainer-theme">${overview.themes.map(({ id, name }) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}</select></label>
+        ${
+          savedId
+            ? '<a href="/puzzles/progress">← К истории задач</a>'
+            : `<label>Тема<select id="trainer-theme">${overview.themes.map(({ id, name }) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}</select></label>
         <label>Сложность<select id="trainer-level">${overview.levels.map(({ id, name }) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}</select></label>
         <span id="trainer-count"></span>
         <a href="/daily">Задача дня →</a>
+        <a href="/puzzles/progress">Мой прогресс →</a>`
+        }
       </section>
       <div class="mistake-layout daily-layout trainer-layout">
         <section id="trainer-board-shell" hidden>
@@ -384,7 +398,7 @@ async function loadPuzzleTraining() {
           <p id="trainer-blocked" role="status" hidden>Вернитесь к тренировке после завершения сетевой партии.</p>
           <p id="trainer-score"></p>
           <div class="study-board-tools">
-            <button id="trainer-reveal" hidden>Показать решение</button><button id="trainer-next">Следующая задача →</button>
+            <button id="trainer-reveal" hidden>Показать решение</button><button id="trainer-next">${savedId ? 'К тренировке →' : 'Следующая задача →'}</button>
             <button id="trainer-sound" data-move-sound>♪</button>
           </div>
           <div id="trainer-review" hidden>
@@ -413,10 +427,13 @@ async function loadPuzzleTraining() {
       ['level', overview.levels],
     ]) {
       const select = $('trainer-' + field);
+      if (!select) continue;
       try {
         const saved = localStorage.getItem('dc-puzzle-' + field);
         if (options.some(({ id }) => id === saved)) select.value = saved;
       } catch {}
+      const requested = new URLSearchParams(location.search).get(field);
+      if (options.some(({ id }) => id === requested)) select.value = requested;
       select.onchange = startPuzzleTrainingTask;
     }
     session.board = new ChessBoardView($('trainer-board'), {
@@ -443,7 +460,7 @@ async function loadPuzzleTraining() {
     session.badge.setAttribute('aria-hidden', 'true');
     session.badge.hidden = true;
     $('trainer-board').append(session.badge);
-    $('trainer-next').onclick = startPuzzleTrainingTask;
+    $('trainer-next').onclick = savedId ? () => navigate('/puzzles') : startPuzzleTrainingTask;
     $('trainer-reveal').onclick = () => submitPuzzleTrainingMove({ reveal: true });
     bindMoveSoundButton($('trainer-sound'));
     $('trainer-first').onclick = () => selectPuzzlePly(0);
@@ -458,13 +475,16 @@ async function loadPuzzleTraining() {
     };
     if ($('trainer-login')) $('trainer-login').onclick = () => auth();
     refreshPuzzleTrainingProgress(overview.progress);
-    startPuzzleTrainingTask();
+    if (saved) showPuzzleTask(session, saved);
+    else startPuzzleTrainingTask();
   } catch (error) {
     if (puzzleTraining === session && !error.staleSession)
       $('community-page').innerHTML =
         '<div class="page-empty"><h1>Не удалось открыть задачи</h1><p>' +
         escapeHtml(error.message) +
-        '</p><a href="/puzzles">Повторить →</a></div>';
+        (savedId
+          ? '</p><a href="/puzzles/progress">К истории →</a></div>'
+          : '</p><a href="/puzzles">Повторить →</a></div>');
   }
 }
 

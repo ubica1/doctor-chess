@@ -83,6 +83,9 @@ async function routePage() {
   if (path === '/practice') return loadMistakePractice();
   if (path === '/daily') return loadDailyPuzzle();
   if (path === '/puzzles') return loadPuzzleTraining();
+  if (path === '/puzzles/progress') return loadPuzzleProgress();
+  const savedPuzzle = /^\/puzzles\/progress\/([A-Za-z0-9]{5})$/.exec(path);
+  if (savedPuzzle) return loadPuzzleTraining(savedPuzzle[1]);
   if (/^\/study\/(new|[a-f0-9]{24})$/.test(path)) return loadNotebook(path.slice(7));
   if (path === '/watch') return loadWatchHall();
   if (/^\/watch\/[a-f0-9]+$/.test(path)) return loadWatchRoom(path.slice(7));
@@ -254,7 +257,10 @@ document.addEventListener('click', (e) => {
       url.pathname === '/academy' ||
       url.pathname === '/watch' ||
       url.pathname.startsWith('/watch/') ||
-      ['/studies', '/editor', '/practice', '/daily', '/puzzles'].includes(url.pathname) ||
+      ['/studies', '/editor', '/practice', '/daily', '/puzzles', '/puzzles/progress'].includes(
+        url.pathname
+      ) ||
+      url.pathname.startsWith('/puzzles/progress/') ||
       url.pathname.startsWith('/study/') ||
       url.pathname.startsWith('/player/') ||
       url.pathname.startsWith('/review/') ||
@@ -263,6 +269,9 @@ document.addEventListener('click', (e) => {
       url.pathname.startsWith('/play/'))
   ) {
     e.preventDefault();
-    navigate(url.pathname);
+    navigate(
+      url.pathname +
+        (url.pathname === '/puzzles' || url.pathname === '/puzzles/progress' ? url.search : '')
+    );
   }
 });

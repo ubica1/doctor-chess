@@ -2,6 +2,7 @@ import json
 import hmac
 import re
 from secrets import choice, token_bytes
+from time import time
 
 from social import ClubError
 
@@ -22,6 +23,8 @@ LEVELS = {
     "advanced": ("Продвинутый", 1800, 10000),
 }
 MOVE = re.compile(r"[a-h][1-8][a-h][1-8][qrbn]?")
+HISTORY_PAGE_SIZE = 12
+TREND_LIMIT = 24
 
 
 class Puzzles:
@@ -50,9 +53,22 @@ class Puzzles:
                 delta INTEGER,
                 win INTEGER,
                 final_move TEXT,
+                updated_at REAL,
+                scored_order INTEGER,
+                reveal_step INTEGER,
                 PRIMARY KEY (user_id, puzzle_id)
             )
             """)
+        columns = {
+            row["name"] for row in self.db.execute("PRAGMA table_info(puzzle_attempts)")
+        }
+        for name, kind in (
+            ("updated_at", "REAL"),
+            ("scored_order", "INTEGER"),
+            ("reveal_step", "INTEGER"),
+        ):
+            if name not in columns:
+                self.db.execute(f"ALTER TABLE puzzle_attempts ADD COLUMN {name} {kind}")
 
     def progress(self, uid):
         if not uid:
@@ -81,6 +97,92 @@ class Puzzles:
             "progress": self.progress(uid),
         }
 
+    def dashboard(self, uid, theme, outcome, page):
+        if not uid:
+            raise ClubError("Войдите, чтобы увидеть свой прогресс.", 401)
+        if theme not in THEMES or outcome not in (
+            "all",
+            "win",
+            "retry",
+            "revealed",
+            "active",
+        ):
+            raise ClubError("Неизвестный фильтр истории.")
+        progress = self.progress(uid)
+        attempts = list(
+            self.db.execute(
+                """SELECT * FROM puzzle_attempts
+                WHERE user_id=? AND (step>0 OR delta IS NOT NULL)
+                ORDER BY updated_at DESC,rowid DESC""",
+                (uid,),
+            )
+        )
+        scored = sorted(
+            (row for row in attempts if row["scored_order"] is not None),
+            key=lambda row: row["scored_order"],
+            reverse=True,
+        )[:TREND_LIMIT]
+        rating = progress["rating"]
+        trend = [rating]
+        for row in scored:
+            rating -= row["delta"]
+            trend.append(rating)
+        stats = {
+            tag: {"id": tag, "name": name, "played": 0, "wins": 0}
+            for tag, name in THEMES.items()
+            if tag != "mix"
+        }
+        history = []
+        for row in attempts:
+            puzzle = self.catalog.get(row["puzzle_id"])
+            if not puzzle:
+                continue
+            if row["delta"] is not None:
+                for tag in puzzle["tags"]:
+                    stats[tag]["played"] += 1
+                    stats[tag]["wins"] += int(bool(row["win"]))
+            result = row["state"]
+            if result == "solved":
+                result = "win" if row["win"] else "retry"
+            if (theme == "mix" or theme in puzzle["tags"]) and (
+                outcome == "all" or outcome == result
+            ):
+                history.append(
+                    {
+                        "id": puzzle["id"],
+                        "rating": puzzle["rating"],
+                        "themes": [THEMES[tag] for tag in puzzle["tags"]],
+                        "result": result,
+                        "delta": row["delta"],
+                        "updatedAt": row["updated_at"],
+                    }
+                )
+        pages = max(1, (len(history) + HISTORY_PAGE_SIZE - 1) // HISTORY_PAGE_SIZE)
+        page = max(1, min(page, pages))
+        offset = (page - 1) * HISTORY_PAGE_SIZE
+        return {
+            "progress": progress,
+            "trend": trend[::-1] if scored else [],
+            "themes": list(stats.values()),
+            "history": history[offset : offset + HISTORY_PAGE_SIZE],
+            "page": page,
+            "pages": pages,
+            "total": len(history),
+        }
+
+    def saved(self, uid, pid):
+        if not uid:
+            raise ClubError("Войдите, чтобы открыть свою задачу.", 401)
+        puzzle = self.catalog.get(pid)
+        row = self.db.execute(
+            """SELECT * FROM puzzle_attempts
+            WHERE user_id=? AND puzzle_id=? AND (step>0 OR delta IS NOT NULL)""",
+            (uid, pid),
+        ).fetchone()
+        if not puzzle or not row:
+            raise ClubError("Задача не найдена в вашей истории.", 404)
+        return self.snapshot(puzzle, dict(row), uid)
+
     def snapshot(self, puzzle, attempt, uid, feedback=None):
         line = puzzle["line"]
         moves = line[: attempt["step"]]
@@ -93,6 +195,11 @@ class Puzzles:
             "rating": puzzle["rating"],
             "moves": moves,
             "step": attempt["step"],
+            "accepted": (
+                (attempt.get("reveal_step") or 0)
+                if attempt["state"] == "revealed"
+                else attempt["step"]
+            ),
             "state": attempt["state"],
             "feedback": feedback,
             "score": (
@@ -219,16 +326,18 @@ class Puzzles:
         final = step == len(line) - 1
         correct = move == line[step] or (final and move in puzzle["alternatives"])
         if reveal:
-            attempt.update(step=len(line), state="revealed")
+            attempt.update(step=len(line), state="revealed", reveal_step=step)
         elif correct:
             if final:
                 attempt.update(step=len(line), state="solved", final_move=move)
             else:
                 attempt.update(step=step + 2)
         if uid:
-            if attempt["delta"] is None and (reveal or not correct or final):
+            scored = attempt["delta"] is None and (reveal or not correct or final)
+            if scored:
                 won = not reveal and correct
-                rating = self.progress(uid)["rating"]
+                progress = self.progress(uid)
+                rating = progress["rating"]
                 expected = 1 / (1 + 10 ** ((puzzle["rating"] - rating) / 400))
                 delta = round(24 * (int(won) - expected))
                 delta = max(1, delta) if won else min(-1, delta)
@@ -239,20 +348,27 @@ class Puzzles:
                     SET rating=excluded.rating, played=played+1, wins=wins+excluded.wins""",
                     (uid, rating + delta, int(won)),
                 )
-                attempt.update(delta=delta, win=int(won))
-            self.db.execute(
-                """UPDATE puzzle_attempts SET step=?,state=?,delta=?,win=?,final_move=?
-                WHERE user_id=? AND puzzle_id=?""",
-                (
-                    attempt["step"],
-                    attempt["state"],
-                    attempt["delta"],
-                    attempt["win"],
-                    attempt["final_move"],
-                    uid,
-                    puzzle["id"],
-                ),
-            )
+                attempt.update(
+                    delta=delta, win=int(won), scored_order=progress["played"] + 1
+                )
+            if scored or reveal or correct:
+                self.db.execute(
+                    """UPDATE puzzle_attempts
+                    SET step=?,state=?,delta=?,win=?,final_move=?,updated_at=?,scored_order=?,reveal_step=?
+                    WHERE user_id=? AND puzzle_id=?""",
+                    (
+                        attempt["step"],
+                        attempt["state"],
+                        attempt["delta"],
+                        attempt["win"],
+                        attempt["final_move"],
+                        time(),
+                        attempt["scored_order"],
+                        attempt["reveal_step"],
+                        uid,
+                        puzzle["id"],
+                    ),
+                )
         return self.snapshot(
             puzzle, attempt, uid, "wrong" if not reveal and not correct else None
         )
