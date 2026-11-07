@@ -1353,6 +1353,100 @@ class StudiesIntegration(unittest.TestCase):
             self.assertIn(b"/daily-puzzle.js", response.read())
 
 
+class PuzzleIntegration(unittest.TestCase):
+    def test_guest_catalog_and_signed_attempt(self):
+        guest = client()
+        with guest.open(BASE + "/puzzles") as response:
+            self.assertIn(b"/puzzle-training.js", response.read())
+        catalog = call(guest, "puzzles")[1]
+        self.assertIsNone(catalog["progress"])
+        self.assertEqual(len(catalog["themes"]), 9)
+        for theme in catalog["themes"]:
+            self.assertTrue(all(count >= 40 for count in theme["counts"].values()))
+        settings = {"theme": "promotion", "level": "advanced"}
+        first = call(guest, "puzzles/start", settings)[1]
+        self.assertEqual(first["moves"], [])
+        self.assertNotIn("game", first)
+        self.assertGreaterEqual(first["rating"], 1800)
+        payload = {"id": first["id"], "step": 0, "reveal": True}
+        self.assertEqual(call(guest, "puzzles/play", payload)[0], 409)
+        payload["guestKey"] = first["guestKey"]
+        code, result = call(guest, "puzzles/play", payload)
+        self.assertEqual(code, 200, result)
+        self.assertEqual(result["state"], "revealed")
+        self.assertIn("Превращение пешки", result["themes"])
+        self.assertIsNone(result["progress"])
+        next_task = call(guest, "puzzles/start", {**settings, "previous": first["id"]})[
+            1
+        ]
+        self.assertNotEqual(first["id"], next_task["id"])
+
+    def test_rated_progress_wrong_retry_resume_and_reveal(self):
+        a, stranger = client(), client()
+        self.assertEqual(
+            call(
+                a, "register", {"username": "PuzzleRated", "password": "test-pass-123"}
+            )[0],
+            200,
+        )
+        self.assertEqual(
+            call(
+                stranger,
+                "register",
+                {"username": "PuzzleOther", "password": "test-pass-123"},
+            )[0],
+            200,
+        )
+        settings = {"theme": "fork", "level": "intermediate"}
+        _, task = call(a, "puzzles/start", settings)
+        self.assertTrue(1400 <= task["rating"] < 1800)
+        self.assertEqual(task["progress"], {"rating": 1200, "played": 0, "wins": 0})
+        bad = {"id": task["id"], "step": 0, "move": "a1a1"}
+        self.assertEqual(call(stranger, "puzzles/play", bad)[0], 404)
+        wrong = call(a, "puzzles/play", bad)[1]
+        self.assertEqual(wrong["feedback"], "wrong")
+        self.assertEqual(wrong["progress"]["played"], 1)
+        self.assertLess(wrong["score"]["delta"], 0)
+        self.assertEqual(call(a, "puzzles/play", bad)[1], wrong)
+        line = server.puzzles.catalog[task["id"]]["line"]
+        for step in range(0, len(line), 2):
+            resumed = call(a, "puzzles/start", settings)[1]
+            self.assertEqual(resumed["id"], task["id"])
+            self.assertEqual(resumed["moves"], line[:step])
+            answer = call(
+                a, "puzzles/play", {"id": task["id"], "step": step, "move": line[step]}
+            )[1]
+        self.assertEqual(answer["state"], "solved")
+        self.assertFalse(answer["score"]["win"])
+        self.assertEqual(answer["progress"], wrong["progress"])
+        next_task = call(a, "puzzles/start", settings)[1]
+        self.assertNotEqual(next_task["id"], task["id"])
+        next_line = server.puzzles.catalog[next_task["id"]]["line"]
+        for step in range(0, len(next_line), 2):
+            payload = {"id": next_task["id"], "step": step, "move": next_line[step]}
+            answer = call(a, "puzzles/play", payload)[1]
+        self.assertEqual(answer["state"], "solved")
+        self.assertTrue(answer["score"]["win"])
+        self.assertGreater(answer["score"]["delta"], 0)
+        self.assertEqual(answer["progress"]["played"], 2)
+        self.assertEqual(answer["progress"]["wins"], 1)
+        self.assertEqual(call(a, "puzzles/play", payload)[1], answer)
+        third = call(a, "puzzles/start", settings)[1]
+        reveal = {"id": third["id"], "step": 0, "reveal": True}
+        answer = call(a, "puzzles/play", reveal)[1]
+        self.assertEqual(answer["state"], "revealed")
+        self.assertEqual(answer["progress"]["played"], 3)
+        self.assertEqual(call(a, "puzzles/play", reveal)[1], answer)
+        profile = call(client(), "players/PuzzleRated")[1]["player"]
+        self.assertEqual(
+            profile["ratings"]["puzzles"]["rating"], answer["progress"]["rating"]
+        )
+        self.assertEqual(profile["ratings"]["blitz"]["played"], 0)
+        self.assertEqual(
+            call(a, "players?search=PuzzleRated")[1]["players"][0]["played"], 0
+        )
+
+
 def tearDownModule():
     httpd.shutdown()
     httpd.server_close()

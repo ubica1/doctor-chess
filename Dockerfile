@@ -8,6 +8,7 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY doctor-chess-site/*.py doctor-chess-site/*-runner.cjs ./
+COPY doctor-chess-site/puzzle-catalog.jsonl ./
 COPY doctor-chess-site/dist ./dist
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

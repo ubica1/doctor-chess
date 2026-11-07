@@ -840,6 +840,7 @@ $('profile-action').onclick = () => (user ? profile() : auth(true));
 $('nav-profile').onclick = profile;
 $('nav-ratings').onclick = ratings;
 $('nav-play').onclick = () => navigate('/');
+$('nav-puzzles').onclick = () => navigate('/puzzles');
 $('nav-players').onclick = () => navigate('/players');
 $('undo').onclick = () => {
   if (mode !== 'online' && (mode !== 'analysis' || variationEditing) && history.length) {

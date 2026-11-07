@@ -82,6 +82,7 @@ async function routePage() {
   if (path === '/editor') return loadPositionEditor();
   if (path === '/practice') return loadMistakePractice();
   if (path === '/daily') return loadDailyPuzzle();
+  if (path === '/puzzles') return loadPuzzleTraining();
   if (/^\/study\/(new|[a-f0-9]{24})$/.test(path)) return loadNotebook(path.slice(7));
   if (path === '/watch') return loadWatchHall();
   if (/^\/watch\/[a-f0-9]+$/.test(path)) return loadWatchRoom(path.slice(7));
@@ -138,7 +139,7 @@ async function loadPlayer(username, page = 1, category = 'all') {
    })
    .join(
      ''
-   )}</div><p class="rating-footnote">? — стартовый рейтинг, пока нет завершённых партий в этом контроле.</p></section>
+   )}</div><p class="rating-footnote">? — стартовый рейтинг, пока нет завершённых партий в этом контроле.</p>${p.ratings.puzzles ? `<p class="profile-puzzle-rating"><a href="/puzzles">Задачи</a> <strong>${p.ratings.puzzles.rating}</strong><span>Решено ${p.ratings.puzzles.wins} из ${p.ratings.puzzles.played}</span></p>` : ''}</section>
  <section class="public-history"><div class="profile-section-title"><span>棋谱</span><h2>Последние партии</h2><small>${data.player.total_games}</small></div><div class="history-filters">${[['all', 'Все'], ...Object.entries(cats)].map(([c, t]) => `<button data-history-filter="${c}" class="${category === c ? 'selected' : ''}">${t}</button>`).join('')}</div>${p.games.length ? `<div class="game-log"><div class="game-log-head"><span>Соперник</span><span>Контроль</span><span>Результат</span><span>Дата</span></div>${p.games.map((g) => `<div class="game-log-row"><a class="opponent-link" href="${profilePath(g.opponent.username)}"><span class="opponent-emblem">${emblem(g.opponent.avatar)}</span><span>${escapeHtml(g.opponent.username)}<small>${g.side === 'w' ? 'Белыми' : 'Чёрными'}</small></span></a><span class="log-control">${g.control}<small>${g.kind === 'casual' ? 'Дружеская' : cats[g.category]}</small></span><a href="/review/${g.id}" class="log-result ${g.result}" title="Разобрать партию: ${escapeHtml(g.reason)}">${{ win: 'Победа', draw: 'Ничья', loss: 'Поражение' }[g.result]} ↗</a><time>${dateLabel(g.created)}</time></div>`).join('')}</div>` : `<div class="history-empty"><div>${piece('N')}</div><h3>${category === 'all' ? 'Первая глава ещё не написана.' : 'В этом ритме пока без партий.'}</h3><p>Завершённые партии появятся здесь вместе с результатами.</p><a href="/">К игровой доске →</a></div>`}<div class="history-pagination"><button id="prev-games" ${page === 1 ? 'disabled' : ''}>← Назад</button><span>${page} / ${Math.max(1, Math.ceil(p.total_games / 12))}</span><button id="next-games" ${page * 12 >= p.total_games ? 'disabled' : ''}>Далее →</button></div></section></div></div><div class="community-footer"><span>以棋会友 · Встречаемся за шахматами</span><a href="/">Doctor Chess</a></div>`;
     if (!own) $('challenge-player').onclick = () => createFriendGame(p.username);
     $('share-profile').onclick = async () => {
@@ -253,7 +254,7 @@ document.addEventListener('click', (e) => {
       url.pathname === '/academy' ||
       url.pathname === '/watch' ||
       url.pathname.startsWith('/watch/') ||
-      ['/studies', '/editor', '/practice', '/daily'].includes(url.pathname) ||
+      ['/studies', '/editor', '/practice', '/daily', '/puzzles'].includes(url.pathname) ||
       url.pathname.startsWith('/study/') ||
       url.pathname.startsWith('/player/') ||
       url.pathname.startsWith('/review/') ||

@@ -12,6 +12,7 @@ from studies import Studies
 from watch import WatchGames
 from accounts import Accounts, client_address
 from move_validator import MoveValidator, ValidationUnavailable
+from puzzles import Puzzles
 
 BASE = Path(__file__).resolve().parent
 PUBLIC_ORIGIN = os.environ.get("DOCTOR_CHESS_PUBLIC_ORIGIN", "").rstrip("/")
@@ -279,6 +280,7 @@ watch = WatchGames(db, game_row, profile)
 accounts = Accounts(db, failures)
 auth_gate = threading.BoundedSemaphore(2)
 move_validator = MoveValidator(BASE)
+puzzles = Puzzles(db, BASE / "puzzle-catalog.jsonl")
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -347,6 +349,7 @@ class Handler(SimpleHTTPRequestHandler):
                 "/practice",
                 "/watch",
                 "/daily",
+                "/puzzles",
             )
         ):
             self.path = "/index.html"
@@ -359,6 +362,8 @@ class Handler(SimpleHTTPRequestHandler):
                 presence.touch(uid)
                 parsed = urlparse(self.path)
                 query = parse_qs(parsed.query)
+                if parsed.path == "/api/puzzles":
+                    return self.reply(puzzles.overview(uid))
                 if parsed.path == "/api/studies":
                     try:
                         page = max(1, min(10000, int(query.get("page", ["1"])[0])))
@@ -442,7 +447,7 @@ class Handler(SimpleHTTPRequestHandler):
                     players = [
                         dict(r)
                         for r in db.execute(
-                            "SELECT u.username,u.avatar,u.created,MAX(r.rating) AS rating,SUM(r.played) AS played FROM users u JOIN ratings r ON r.user_id=u.id WHERE instr(u.username_key,?)>0 GROUP BY u.id ORDER BY u.created DESC LIMIT 50",
+                            "SELECT u.username,u.avatar,u.created,MAX(r.rating) AS rating,SUM(r.played) AS played FROM users u JOIN ratings r ON r.user_id=u.id WHERE r.category!='puzzles' AND instr(u.username_key,?)>0 GROUP BY u.id ORDER BY u.created DESC LIMIT 50",
                             (name_key(search),),
                         )
                     ]
@@ -582,6 +587,14 @@ class Handler(SimpleHTTPRequestHandler):
         if route in ["/api/register", "/api/login"]:
             uid = accounts.finish(self.auth_prepared)
             return self.reply({"user": profile(uid)}, cookie=self.session(uid))
+        if route in ("/api/puzzles/start", "/api/puzzles/play"):
+            if uid and club.active_for(uid):
+                raise ClubError("Сначала завершите сетевую партию.", 409)
+            return self.reply(
+                puzzles.start(uid, x)
+                if route.endswith("/start")
+                else puzzles.play(uid, x)
+            )
         if not uid:
             return self.reply({"error": "Сначала войдите в профиль"}, 401)
         watch_match = re.fullmatch(r"/api/games/([a-f0-9]+)/spectators", route)

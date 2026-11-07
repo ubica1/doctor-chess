@@ -1,6 +1,6 @@
 {
   "name": "doctor-chess",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "description": "Doctor Chess — online chess, DJ Doctor, analysis and a community of players.",
   "engines": {

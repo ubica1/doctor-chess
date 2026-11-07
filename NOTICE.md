@@ -13,3 +13,7 @@ Stockfish.js 19.0.1 Lite Single — Stockfish contributors, Nathan Rugg, Chess.c
 ## Репертуар DJ Doctor
 
 Дебютные линии и пояснения основаны на книге DJ Doctor «Атака Доктора и Защита Доктора», 2026. Название книги и авторство сохраняются в Школе Доктора и сведениях о приложении.
+
+## Тактические задачи Lichess
+
+[Каталог](doctor-chess-site/puzzle-catalog.jsonl) содержит 960 позиций из [открытой базы Lichess](https://database.lichess.org/#puzzles), опубликованной под [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). Для подборки отобраны популярные позиции по темам и сложности. К исходному FEN применён первый ход соперника, линии проверены движком Doctor Chess. Сохранены исходные идентификаторы и ссылки на партии.
