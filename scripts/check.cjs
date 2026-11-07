@@ -23,6 +23,7 @@ const checks = [
   'test-notebook.cjs',
   'test-workshop-ui.cjs',
   'test-doctor.cjs',
+  'test-daily.cjs',
 ];
 for (const file of checks) {
   const result = spawnSync(process.execPath, [file], { cwd: app, stdio: 'inherit' });

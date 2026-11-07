@@ -700,7 +700,7 @@ h1 i {
   text-align: left;
   gap: 12px;
 }
-.puzzle-link > span {
+.puzzle-link > span:first-child {
   font: 35px serif;
   color: var(--red);
 }

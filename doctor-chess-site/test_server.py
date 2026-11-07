@@ -1347,6 +1347,11 @@ class StudiesIntegration(unittest.TestCase):
         self.assertEqual(call(self.host, "studies?page=invalid")[0], 400)
         self.assertEqual(call(self.host, "studies?page=2")[1]["studies"], [])
 
+    def test_daily_puzzle_is_public(self):
+        with self.anon.open(BASE + "/daily") as response:
+            self.assertEqual(response.status, 200)
+            self.assertIn(b"/daily-puzzle.js", response.read())
+
 
 def tearDownModule():
     httpd.shutdown()

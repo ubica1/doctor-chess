@@ -81,6 +81,7 @@ async function routePage() {
   if (path === '/studies') return loadStudies();
   if (path === '/editor') return loadPositionEditor();
   if (path === '/practice') return loadMistakePractice();
+  if (path === '/daily') return loadDailyPuzzle();
   if (/^\/study\/(new|[a-f0-9]{24})$/.test(path)) return loadNotebook(path.slice(7));
   if (path === '/watch') return loadWatchHall();
   if (/^\/watch\/[a-f0-9]+$/.test(path)) return loadWatchRoom(path.slice(7));
@@ -252,7 +253,7 @@ document.addEventListener('click', (e) => {
       url.pathname === '/academy' ||
       url.pathname === '/watch' ||
       url.pathname.startsWith('/watch/') ||
-      ['/studies', '/editor', '/practice'].includes(url.pathname) ||
+      ['/studies', '/editor', '/practice', '/daily'].includes(url.pathname) ||
       url.pathname.startsWith('/study/') ||
       url.pathname.startsWith('/player/') ||
       url.pathname.startsWith('/review/') ||

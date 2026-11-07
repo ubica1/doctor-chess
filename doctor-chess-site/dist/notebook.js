@@ -26,6 +26,7 @@ function closeLearningPages() {
   notebookEpoch++;
   if (typeof closePositionEditor === 'function') closePositionEditor();
   if (typeof closeMistakePractice === 'function') closeMistakePractice();
+  if (typeof closeDailyPuzzle === 'function') closeDailyPuzzle();
 }
 async function loadStudies(page = 1, archived = false) {
   const request = ++communityRequest;
@@ -530,6 +531,7 @@ function downloadLearningPGN(text, filename) {
 function updateLearningSafety() {
   if (typeof suspendTrainingForGame === 'function') suspendTrainingForGame();
   if (typeof updateMistakeSafety === 'function') updateMistakeSafety();
+  if (typeof updateDailySafety === 'function') updateDailySafety();
   if (!notebook) return;
   $('study-evaluate').disabled = !!learningMatchActive();
   $('study-train').disabled = !!learningMatchActive() || busy;

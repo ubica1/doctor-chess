@@ -339,7 +339,15 @@ class Handler(SimpleHTTPRequestHandler):
             or self.path.startswith("/study/")
             or self.path.startswith("/watch/")
             or urlparse(self.path).path
-            in ("/players", "/academy", "/studies", "/editor", "/practice", "/watch")
+            in (
+                "/players",
+                "/academy",
+                "/studies",
+                "/editor",
+                "/practice",
+                "/watch",
+                "/daily",
+            )
         ):
             self.path = "/index.html"
             return super().do_GET()

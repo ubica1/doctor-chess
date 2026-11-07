@@ -841,14 +841,6 @@ $('nav-profile').onclick = profile;
 $('nav-ratings').onclick = ratings;
 $('nav-play').onclick = () => navigate('/');
 $('nav-players').onclick = () => navigate('/players');
-$('puzzle').onclick = async () => {
-  try {
-    await changeMode('puzzle');
-    if (mode === 'puzzle') startLocal();
-  } catch (e) {
-    toast(e.message);
-  }
-};
 $('undo').onclick = () => {
   if (mode !== 'online' && (mode !== 'analysis' || variationEditing) && history.length) {
     stopStudy();

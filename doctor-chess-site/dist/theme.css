@@ -2962,7 +2962,8 @@ select:focus-visible {
 #watch-board,
 #study-board,
 #editor-board,
-#mistake-board {
+#mistake-board,
+#daily-board {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   aspect-ratio: 1;
@@ -2978,7 +2979,8 @@ select:focus-visible {
 #watch-board:focus-visible,
 #study-board:focus-visible,
 #editor-board:focus-visible,
-#mistake-board:focus-visible {
+#mistake-board:focus-visible,
+#daily-board:focus-visible {
   outline: 2px solid var(--red);
   outline-offset: 4px;
 }
@@ -2988,6 +2990,24 @@ select:focus-visible {
   padding: 12px;
   transform: none;
   margin-bottom: 20px;
+}
+.daily-layout {
+  max-width: 1040px;
+}
+.daily-layout .board-frame {
+  max-width: 580px;
+}
+.daily-layout .daily-streak {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  color: var(--red-dark);
+  font-weight: 600;
+}
+.daily-layout aside > a {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--red-dark);
 }
 .editor-palette {
   display: grid;
