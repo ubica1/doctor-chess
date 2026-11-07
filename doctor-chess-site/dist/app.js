@@ -55,7 +55,7 @@ function unlockMoveAudio() {
 
 function loadMoveSound(capture) {
   if (!moveSounds.has(capture)) {
-    const path = capture ? '/sounds/oak-capture.wav' : '/sounds/oak-move.wav';
+    const path = capture ? '/sounds/oak-capture.wav?v=2' : '/sounds/oak-move.wav?v=2';
     const buffer = fetch(path)
       .then((response) => {
         if (!response.ok) throw new Error('Move audio unavailable');

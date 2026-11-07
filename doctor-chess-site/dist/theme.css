@@ -1,4 +1,16 @@
 /* Canonical club theme. Functional layout lives in style.css; all visual tokens and readable type live here. */
+@font-face {
+  font-family: Limelight;
+  src: url('/fonts/Limelight-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Yeseva One';
+  src: url('/fonts/YesevaOne-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
 :root {
   --red: #b92d28;
   --red-dark: #85231f;
@@ -12,6 +24,7 @@
   --ui-motion: 150ms ease-out;
   --serif: Georgia, 'Times New Roman', serif;
   --sans: Arial, Helvetica, sans-serif;
+  --display: Limelight, 'Yeseva One', var(--serif);
 }
 body {
   font: 15px/1.5 var(--sans);
@@ -57,7 +70,8 @@ header:after {
   background: #d2af672b;
 }
 .brand {
-  font: 27px var(--serif);
+  font: 27px var(--display);
+  letter-spacing: -0.02em;
   color: var(--red-dark);
 }
 .brand-seal {
@@ -2374,7 +2388,7 @@ select:focus-visible {
   margin-block-start: 21px;
 }
 .lobby-doctor strong {
-  font: 21px var(--serif);
+  font: 21px var(--display);
   color: var(--red-dark);
 }
 .lobby-doctor p {
@@ -2402,7 +2416,7 @@ select:focus-visible {
 .lobby .play-card-title {
   margin: 0 0 8px;
   font-size: clamp(34px, 4.5vw, 50px);
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
 }
 .lobby .lobby-summary,
 .lobby .control-label,
@@ -3804,4 +3818,11 @@ select:focus-visible {
 .board-ink-tools:has(.ink-toggle[aria-pressed='true']) > summary {
   font-weight: bold;
   color: var(--red-dark);
+}
+
+.lobby .play-card-title,
+#community-page h1,
+.product-footer > span:first-child {
+  font-family: var(--display);
+  font-weight: 400;
 }

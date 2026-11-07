@@ -16,7 +16,11 @@ Stockfish.js 19.0.1 Lite Single — Stockfish contributors, Nathan Rugg, Chess.c
 
 ## Звуки доски
 
-Ход и взятие используют две записи Anthousai с Freesound, [tree 01](https://freesound.org/people/Anthousai/sounds/406282/) и [tree 02](https://freesound.org/people/Anthousai/sounds/406281/), под лицензией [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). Записи укорочены, сведены в моно и обработаны по частоте и громкости.
+Ход и взятие используют две записи Anthousai с Freesound, [tree 01](https://freesound.org/people/Anthousai/sounds/406282/) и [tree 02](https://freesound.org/people/Anthousai/sounds/406281/), под лицензией [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). Записи укорочены, сведены в моно и обработаны по высоте, частоте и громкости.
+
+## Шрифты
+
+Limelight от Sorkin Type Co распространяется по [SIL Open Font License 1.1](doctor-chess-site/dist/fonts/Limelight-OFL.txt). Yeseva One от Yeseva One Project Authors распространяется по [SIL Open Font License 1.1](doctor-chess-site/dist/fonts/Yeseva-OFL.txt).
 
 ## Тактические задачи Lichess
 
