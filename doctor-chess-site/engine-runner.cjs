@@ -1,10 +1,9 @@
 const E = require('./dist/engine.js');
-let input = '';
-process.stdin.on('data', (s) => (input += s));
-process.stdin.on('end', () => {
+
+function validate(input) {
   try {
     const x = JSON.parse(input);
-    if (x.action === 'initial') return console.log(JSON.stringify({ state: E.initial() }));
+    if (x.action === 'initial') return { state: E.initial() };
     const { state: s, from: i, to: j, promotion: p = 'q' } = x;
     if (
       !Number.isInteger(i) ||
@@ -22,15 +21,30 @@ process.stdin.on('end', () => {
       throw Error('Превращение возможно только для пешки на последней горизонтали');
     const next = E.apply(s, i, j, p),
       message = E.end(next, x.history || []);
-    console.log(
-      JSON.stringify({
-        state: next,
-        message,
-        result: message ? (message.includes('Ничья') ? 'draw' : s.turn) : null,
-      })
-    );
-  } catch (e) {
-    console.log(JSON.stringify({ error: e.message }));
-    process.exitCode = 1;
+    return {
+      state: next,
+      message,
+      result: message ? (message.includes('Ничья') ? 'draw' : s.turn) : null,
+    };
+  } catch (error) {
+    return { error: error.message };
   }
-});
+}
+
+if (process.argv.includes('--stream')) {
+  const lines = require('node:readline').createInterface({
+    input: process.stdin,
+    terminal: false,
+    crlfDelay: Infinity,
+  });
+  lines.on('line', (line) => console.log(JSON.stringify(validate(line))));
+} else {
+  let input = '';
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (chunk) => (input += chunk));
+  process.stdin.on('end', () => {
+    const result = validate(input);
+    console.log(JSON.stringify(result));
+    if (result.error) process.exitCode = 1;
+  });
+}

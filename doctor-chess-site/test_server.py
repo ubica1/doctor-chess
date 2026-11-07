@@ -615,6 +615,43 @@ class SocialGames(unittest.TestCase):
             )
 
 
+class MoveValidatorTests(unittest.TestCase):
+    def test_reuses_process_after_illegal_move_and_restarts_after_exit(self):
+        from move_validator import MoveValidator
+
+        worker = MoveValidator(server.BASE)
+        request = {"state": server.INITIAL, "from": 52, "to": 36}
+        try:
+            first = worker.validate(request)
+            process = worker.process
+            self.assertIn("error", worker.validate(dict(request, to=20)))
+            self.assertEqual(worker.validate(request), first)
+            self.assertIs(worker.process, process)
+            process.kill()
+            process.wait(timeout=3)
+            self.assertEqual(worker.validate(request), first)
+            self.assertIsNot(worker.process, process)
+        finally:
+            worker.close()
+
+    def test_timeout_discards_worker_and_next_request_uses_fresh_process(self):
+        from move_validator import MoveValidator, ValidationUnavailable
+
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            (base / "engine-runner.cjs").write_text("setInterval(() => {}, 1000);")
+            worker = MoveValidator(base, timeout=0.2)
+            try:
+                request = {"state": server.INITIAL, "from": 52, "to": 36}
+                with self.assertRaises(ValidationUnavailable):
+                    worker.validate(request)
+                self.assertIsNone(worker.process)
+                worker.base, worker.timeout = server.BASE, 5
+                self.assertEqual(worker.validate(request)["state"]["b"][36], "P")
+            finally:
+                worker.close()
+
+
 class ReviewRegressions(unittest.TestCase):
     def setUp(self):
         with server.lock:
@@ -648,14 +685,14 @@ class ReviewRegressions(unittest.TestCase):
     def test_clock_at_request_receipt_and_stable_completion(self):
         from unittest.mock import patch
 
-        original = server.subprocess.run
+        original = server.move_validator.validate
 
         def slow(*args, **kwargs):
             time.sleep(0.5)
             return original(*args, **kwargs)
 
         gid = self.game({60: "K", 56: "R", 4: "k"}, seconds=0.3)
-        with patch.object(server.subprocess, "run", side_effect=slow):
+        with patch.object(server.move_validator, "validate", side_effect=slow):
             code, body = call(self.white, "move", {"game": gid, "from": 56, "to": 48})
         self.assertEqual(code, 200, body)
         self.assertIsNone(body["game"]["result"])
@@ -669,6 +706,22 @@ class ReviewRegressions(unittest.TestCase):
         before = call(self.white, "me")[1]["user"]["ratings"]
         call(self.white, "resign", {"game": gid})
         self.assertEqual(call(self.white, "me")[1]["user"]["ratings"], before)
+
+    def test_validator_failure_leaves_position_intact_for_retry(self):
+        from unittest.mock import patch
+        from move_validator import ValidationUnavailable
+
+        gid = self.game(seconds=180)
+        move = {"game": gid, "from": 52, "to": 36}
+        with patch.object(
+            server.move_validator, "validate", side_effect=ValidationUnavailable
+        ):
+            self.assertEqual(call(self.white, "move", move)[0], 503)
+        state = call(self.white, "state")[1]["game"]
+        self.assertEqual(state["moves"], [])
+        self.assertEqual(state["state"]["b"][52], "P")
+        self.assertEqual(call(self.white, "move", move)[0], 200)
+        self.assertEqual(len(call(self.white, "state")[1]["game"]["moves"]), 1)
 
     def test_timeout_material_and_old_dead_positions(self):
         # Winner is black; enemy material can permit a mating net.

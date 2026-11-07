@@ -1,4 +1,4 @@
-import os, json, sqlite3, secrets, hashlib, time, re, threading, subprocess, random
+import os, json, sqlite3, secrets, hashlib, time, re, threading, random
 from pathlib import Path
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from http.cookies import SimpleCookie
@@ -11,6 +11,7 @@ from friendly import FriendlyActions
 from studies import Studies
 from watch import WatchGames
 from accounts import Accounts, client_address
+from move_validator import MoveValidator, ValidationUnavailable
 
 BASE = Path(__file__).resolve().parent
 PUBLIC_ORIGIN = os.environ.get("DOCTOR_CHESS_PUBLIC_ORIGIN", "").rstrip("/")
@@ -277,6 +278,7 @@ study_gate = threading.BoundedSemaphore(2)
 watch = WatchGames(db, game_row, profile)
 accounts = Accounts(db, failures)
 auth_gate = threading.BoundedSemaphore(2)
+move_validator = MoveValidator(BASE)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -723,16 +725,12 @@ class Handler(SimpleHTTPRequestHandler):
                     "promotion": x.get("promotion", "q"),
                     "history": p["history"],
                 }
-                r = subprocess.run(
-                    ["node", str(BASE / "engine-runner.cjs")],
-                    input=json.dumps(cmd),
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    timeout=5,
-                    cwd=BASE,
-                )
-                out = json.loads(r.stdout)
+                try:
+                    out = move_validator.validate(cmd)
+                except ValidationUnavailable:
+                    return self.reply(
+                        {"error": "Проверка хода недоступна. Повторите ход."}, 503
+                    )
                 if out.get("error"):
                     return self.reply({"error": out["error"]}, 400)
                 now = time.time()
