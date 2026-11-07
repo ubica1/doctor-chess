@@ -160,12 +160,16 @@ function updateGameReport() {
     ' ' +
     plural(rows.filter((r) => r.grade === 'mistake').length, ['ошибка', 'ошибки', 'ошибок']) +
     '.';
-  $('report-rows').innerHTML = rows
-    .map(
-      (r) =>
-        `<div class="report-entry"><button class="report-row" data-report-ply="${r.ply}"><span>${r.number}${r.side === 'w' ? '.' : '…'} <b>${escapeHtml(r.san)}</b><small>${r.book ? 'Ход репертуара Доктора' : 'Лучше: ' + escapeHtml(r.best)}</small></span><span class="report-grade ${r.grade}">${labels[r.grade]}<small>${r.loss >= 9000 ? 'Изменилась оценка мата' : '−' + (r.loss / 100).toFixed(2)} · ${r.after.type === 'mate' ? '#' + r.after.score : (r.after.score >= 0 ? '+' : '') + (r.after.score / 100).toFixed(2)}</small></span></button><button class="report-to-practice" data-practice-ply="${r.ply}" ${r.grade === 'good' || r.best === '—' ? 'hidden' : ''}>В повторение</button></div>`
-    )
-    .join('');
+  $('report-rows').innerHTML =
+    (rows.length
+      ? '<strong class="report-column-name">Белые</strong><strong class="report-column-name">Чёрные</strong>'
+      : '') +
+    rows
+      .map(
+        (r) =>
+          `<div class="report-entry ${r.side === 'b' ? 'report-black' : 'report-white'}"><button class="report-row" data-report-ply="${r.ply}"><span>${r.number}${r.side === 'w' ? '.' : '…'} <b>${escapeHtml(r.san)}</b><small>${r.book ? 'Ход репертуара Доктора' : 'Лучше: ' + escapeHtml(r.best)}</small></span><span class="report-grade ${r.grade}">${labels[r.grade]}<small>${r.loss >= 9000 ? 'Изменилась оценка мата' : '−' + (r.loss / 100).toFixed(2)} · ${r.after.type === 'mate' ? '#' + r.after.score : (r.after.score >= 0 ? '+' : '') + (r.after.score / 100).toFixed(2)}</small></span></button><button class="report-to-practice" data-practice-ply="${r.ply}" ${r.grade === 'good' || r.best === '—' ? 'hidden' : ''}>В повторение</button></div>`
+      )
+      .join('');
   document
     .querySelectorAll('[data-report-ply]')
     .forEach((b) => (b.onclick = () => setReview(Number(b.dataset.reportPly))));

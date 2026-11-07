@@ -1872,35 +1872,45 @@ textarea {
   color: #8c2c24;
 }
 #report-rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 10px;
   max-height: 380px;
   overflow: auto;
 }
+.report-column-name {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 6px;
+  background: #fffaf0;
+  border-bottom: 1px solid var(--line);
+  color: var(--red-dark);
+}
 .report-row {
-  display: flex;
+  display: grid;
   width: 100%;
-  padding: 14px 0;
-  justify-content: space-between;
-  gap: 10px;
+  padding: 10px 6px;
+  gap: 5px;
   text-align: left;
   background: none;
   border: 0;
-  border-bottom: 1px solid #e1d5b9;
   color: #65452e;
+  overflow-wrap: anywhere;
 }
 .report-row:hover {
   background: #f5ebd4;
 }
 .report-row span {
-  font-size: 15px;
+  font-size: 14px;
 }
 .report-row small {
   display: block;
   font-size: 11px;
-  margin-top: 6px;
-  line-height: 1.6;
+  margin-top: 2px;
+  line-height: 1.45;
 }
 .report-grade {
-  text-align: right;
   color: #796b4e;
 }
 .report-grade.inaccuracy {
@@ -3246,19 +3256,20 @@ select:focus-visible {
   color: #725d40;
 }
 .report-entry {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
+  min-width: 0;
   border-bottom: 1px solid var(--line);
 }
-.report-entry .report-row {
-  width: 100%;
-  border-bottom: 0;
+.report-white {
+  grid-column: 1;
+}
+.report-black {
+  grid-column: 2;
 }
 .report-to-practice {
+  max-width: 100%;
   font-size: 13px;
   padding: 9px;
+  margin-bottom: 8px;
 }
 .study-actions a {
   color: var(--red-dark);
@@ -3312,13 +3323,6 @@ select:focus-visible {
   .study-list-row {
     flex-direction: column;
     gap: 12px;
-  }
-  .report-entry {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .report-to-practice {
-    justify-self: start;
-    margin-bottom: 8px;
   }
 }
 
